@@ -26,7 +26,7 @@ const moduleUrls = {
   '@/api/agent/chat': dataModule('export const chatApi = new Proxy({}, { get: (_, method) => (...args) => globalThis.__chatAutoRoutingTest.chat[method](...args) }); export const streamReply = (...args) => (globalThis.__chatAutoRoutingTest.chat.streamReply || (() => Promise.reject(new Error("stream unavailable"))))(...args);'),
   '@/api/agent/aiModels': dataModule('export const aiModelsApi = new Proxy({}, { get: (_, method) => (...args) => globalThis.__chatAutoRoutingTest.models[method](...args) });'),
   '@/api/agent/http': dataModule('export const saveBlob = () => {};'),
-  './contentWorkflow': dataModule('export const formatDate = value => String(value || "");'),
+  './contentWorkflow': dataModule('export const formatDate = value => String(value || ""); export const parseContentDateTime = value => (value ? new Date(value) : null);'),
   './AgentTrace.vue': dataModule('export default { name: "AgentTrace", props: ["plan", "steps", "actions", "live"], render: () => null };'),
   './aiModelForm': dataModule(transpile(readFileSync(new URL('../src/views/agent/content/aiModelForm.ts', import.meta.url), 'utf8'))),
 }

@@ -1,6 +1,7 @@
 """Operations-assistant Agent: workbench tools, the plan/act loop and the chat integration."""
 
 import json
+import threading
 from dataclasses import replace
 
 import httpx
@@ -41,14 +42,25 @@ def reply(content=None, calls=()):
     return httpx.Response(200, json={"choices": [{"message": message, "finish_reason": "stop"}]})
 
 
-def scripted_model(monkeypatch, script):
-    """Answer each chat-completions request with the next scripted response; record the payloads."""
-    payloads = []
+def scripted_model(monkeypatch, loop, plan=None, router=None):
+    """Answer requests by kind, since the plan is drafted in parallel with the first step.
+
+    loop: tool-calling rounds and the final summary, in order; plan: the checklist
+    request; router: the chat router's function call. Returns the payloads by kind.
+    """
+    queues = {"loop": list(loop), "plan": [plan or reply('{"plan": []}')], "router": [router] if router else []}
+    payloads = {"loop": [], "plan": [], "router": []}
 
     def handle(request):
         payload = json.loads(request.content)
-        payloads.append(payload)
-        step = script[len(payloads) - 1]
+        if payload.get("tool_choice") == "required":
+            kind = "router"
+        elif payload["messages"][-1]["content"] == chat_agent.PLAN_PROMPT:
+            kind = "plan"
+        else:
+            kind = "loop"
+        payloads[kind].append(payload)
+        step = queues[kind].pop(0)
         return step(payload) if callable(step) else step
 
     monkeypatch.setattr(chat_agent.httpx, "Client",
@@ -109,11 +121,10 @@ def test_agent_plans_calls_tools_and_records_a_trace(catalog, settings, monkeypa
     client, _, _ = catalog
     product = create_product(client, "雅集酒（遇雅集）")
     payloads = scripted_model(monkeypatch, [
-        reply('{"plan": ["查找雅集酒", "为它生成文案"]}'),
         reply("先查找商品。", [("search_products", {"keyword": "雅集"})]),
         reply("找到了，开始生成。", [("start_generation", {"product_ids": [product["id"]]})]),
         reply("已为雅集酒发起文案生成，完成后请到「生成与审核」审核。"),
-    ])
+    ], plan=reply('{"plan": ["查找雅集酒", "为它生成文案"]}'))
     chat_live.start("reply-1", "alice", "conversation-1")
     history = [{"role": "user", "content": "给雅集酒生成文案", "request": {}}]
 
@@ -129,9 +140,9 @@ def test_agent_plans_calls_tools_and_records_a_trace(catalog, settings, monkeypa
                                  "label": "去「生成与审核」查看进度"}]
     assert {"kind": "商品", "name": "雅集酒（遇雅集）", "id": product["id"]} in trace["objects"]
     # The plan call has no tools; the loop sends the tool list and replays tool results by call id.
-    assert "tools" not in payloads[0] and payloads[1]["tool_choice"] == "auto"
-    assert {tool["function"]["name"] for tool in payloads[1]["tools"]} == set(agent_tools.TOOLS)
-    tool_message = payloads[2]["messages"][-1]
+    assert "tools" not in payloads["plan"][0] and payloads["loop"][0]["tool_choice"] == "auto"
+    assert {tool["function"]["name"] for tool in payloads["loop"][0]["tools"]} == set(agent_tools.TOOLS)
+    tool_message = payloads["loop"][1]["messages"][-1]
     assert tool_message["role"] == "tool" and tool_message["tool_call_id"] == "call-0"
     assert json.loads(tool_message["content"])["result"]["total"] == 1
     chat_live.end("reply-1")
@@ -143,29 +154,67 @@ def test_agent_keeps_completed_steps_when_the_model_fails(catalog, settings, mon
     client, _, _ = catalog
     create_product(client, "雅集酒（遇雅集）")
     scripted_model(monkeypatch, [
-        reply("not json"),
         reply(None, [("search_products", {"keyword": "雅集"})]),
         httpx.Response(502),
-    ])
+    ], plan=reply("not json"))
     chat_live.start("reply-2", "alice", "conversation-2")
     text, trace = chat_agent.run(settings, {"model": "text-model"}, [{"role": "user", "content": "找雅集"}],
                                  ALICE, "reply-2")
     assert trace["plan"] == [] and len(trace["steps"]) == 1
     assert text.startswith("运营助手完成 1 步后中断")
 
-    scripted_model(monkeypatch, [reply('{"plan": []}'), httpx.Response(500)])
+    scripted_model(monkeypatch, [httpx.Response(500)])
     with pytest.raises(ProviderCallError):
         chat_agent.run(settings, {"model": "text-model"}, [{"role": "user", "content": "你好"}], ALICE, "reply-3")
 
 
 def test_agent_stops_after_the_round_limit(catalog, settings, monkeypatch):  # noqa: F811
     looping = reply(None, [("workbench_overview", {})])
-    payloads = scripted_model(monkeypatch, [reply('{"plan": []}')] + [looping] * chat_agent.MAX_ROUNDS
-                              + [reply("目前共有 0 个商品。")])
+    payloads = scripted_model(monkeypatch, [looping] * chat_agent.MAX_ROUNDS + [reply("目前共有 0 个商品。")])
     text, trace = chat_agent.run(settings, {"model": "text-model"}, [{"role": "user", "content": "概况"}],
                                  ALICE, "reply-4")
     assert text == "目前共有 0 个商品。" and len(trace["steps"]) == chat_agent.MAX_ROUNDS
-    assert "tools" not in payloads[-1]
+    assert "tools" not in payloads["loop"][-1]
+
+
+def test_plan_is_drafted_in_parallel_with_the_first_step(catalog, settings, monkeypatch):  # noqa: F811
+    first_step = threading.Event()
+
+    def slow_plan(payload):
+        # Answers only once the first tool round has started: a sequential plan would wait here.
+        assert first_step.wait(5), "the first step waited for the plan"
+        return reply('{"plan": ["查看工作台概况"]}')
+
+    def overview(payload):
+        first_step.set()
+        return reply(None, [("workbench_overview", {})])
+
+    scripted_model(monkeypatch, [overview, reply("目前共有 0 个商品。")], plan=slow_plan)
+    text, trace = chat_agent.run(settings, {"model": "text-model"}, [{"role": "user", "content": "概况"}],
+                                 ALICE, "reply-5")
+    assert text == "目前共有 0 个商品。" and trace["plan"] == ["查看工作台概况"]
+
+
+def test_plan_listed_in_the_first_step_shows_without_waiting(catalog, settings, monkeypatch):  # noqa: F811
+    finished = threading.Event()
+
+    def late_plan(payload):
+        finished.wait(5)  # the backup plan call returns only after the answer
+        return reply('{"plan": ["备用计划"]}')
+
+    def first_step(payload):
+        return reply("1. 查看工作台概况\n2. 汇总结果\n我先查看概况。", [("workbench_overview", {})])
+
+    def final(payload):
+        finished.set()
+        return reply("目前共有 0 个商品。")
+
+    scripted_model(monkeypatch, [first_step, final], plan=late_plan)
+    text, trace = chat_agent.run(settings, {"model": "text-model"}, [{"role": "user", "content": "概况"}],
+                                 ALICE, "reply-6")
+    assert trace["plan"] == ["查看工作台概况", "汇总结果"]
+    assert trace["steps"][0]["thought"] == "我先查看概况。"
+    assert chat_agent._inline_plan("只有一句说明") == ([], "只有一句说明")
 
 
 def test_later_turns_see_the_ids_found_earlier():
@@ -183,11 +232,9 @@ def test_chat_routes_the_request_to_the_agent_and_saves_the_trace(catalog, setti
     client, _, _ = catalog
     create_product(client, "雅集酒（遇雅集）")
     scripted_model(monkeypatch, [
-        reply(None, [("operate_workbench", {})]),  # the router's function call
-        reply('{"plan": ["查看工作台概况"]}'),
         reply(None, [("workbench_overview", {})]),
         reply("现在有 1 个商品，还没有待审核内容。"),
-    ])
+    ], plan=reply('{"plan": ["查看工作台概况"]}'), router=reply(None, [("operate_workbench", {})]))
     monkeypatch.setenv("CONTENT_CHAT_TOOL_ROUTING", "true")
     monkeypatch.setattr(chat_generation._executor, "submit", lambda function, *args: function(*args))
     monkeypatch.setattr(chat_routes, "get_runtime_settings", lambda: settings)

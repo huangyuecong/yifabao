@@ -24,7 +24,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { chatApi, streamReply } from '@/api/agent/chat'
 import { saveBlob } from '@/api/agent/http'
 import AgentTrace from './AgentTrace.vue'
-import { formatDate } from './contentWorkflow'
+import { formatDate, parseContentDateTime } from './contentWorkflow'
 
 defineOptions({ name: 'ContentChatView' })
 
@@ -102,6 +102,12 @@ markdown.renderer.rules.link_open = (tokens, index, options, environment, render
   return defaultLinkOpen
     ? defaultLinkOpen(tokens, index, options, environment, renderer)
     : renderer.renderToken(tokens, index, options)
+}
+
+// CommonMark does not close "**下一步：**请" (punctuation before the closing marker and
+// a CJK character after it), so move such trailing punctuation outside the bold text.
+function renderMarkdown(text: string) {
+  return markdown.render(text.replace(/\*\*([^*\n]+?)([：:，,。！!？?；;、])\*\*/gu, '**$1**$2'))
 }
 
 const draftKey = computed(() => current.value?.id || 'new')
@@ -356,6 +362,7 @@ function followReply() {
     if (!state) {
       return
     }
+    clock.value = Date.now()
     if (event.type === 'stage') {
       state.stage = event.label
     }
@@ -417,6 +424,19 @@ function routingLabel(routing: ChatRouting) {
   return `${routing.method === 'function_calling' ? '模型选择' : '规则匹配'}：${toolLabels[routing.tool]}`
 }
 
+// Refreshed by each status poll and stream event, so a slow model never looks frozen.
+const clock = ref(Date.now())
+
+function waitedSeconds(message: ChatMessage) {
+  const started = parseContentDateTime(message.created_at)
+  if (!started) {
+    return 0
+  }
+  // Whole seconds read from a UTC clock face (integer arithmetic only).
+  const waited = new Date(Math.max(0, clock.value - started.getTime()))
+  return waited.getUTCHours() * 3600 + waited.getUTCMinutes() * 60 + waited.getUTCSeconds()
+}
+
 function schedulePolling(delay = 2500) {
   if (disposed || !viewActive || !remotePending.value || pollTimer || !current.value) {
     return
@@ -425,6 +445,7 @@ function schedulePolling(delay = 2500) {
   const sequence = pollSequence
   pollTimer = setTimeout(async () => {
     pollTimer = undefined
+    clock.value = Date.now()
     const nearBottom = messageList.value
       ? messageList.value.scrollHeight - messageList.value.scrollTop - messageList.value.clientHeight < 160
       : true
@@ -1188,14 +1209,14 @@ onBeforeUnmount(() => {
               :actions="message.agent.actions"
             />
             <div v-if="message.role === 'user' && message.content" class="user-message-text">{{ message.content }}</div>
-            <div v-else-if="message.content" v-dompurify-html="markdown.render(message.content)" class="assistant-markdown" />
+            <div v-else-if="message.content" v-dompurify-html="renderMarkdown(message.content)" class="assistant-markdown" />
             <div
               v-else-if="message.status === 'pending' && liveReplies.get(message.id)?.text"
-              v-dompurify-html="markdown.render(liveReplies.get(message.id)!.text)"
+              v-dompurify-html="renderMarkdown(liveReplies.get(message.id)!.text)"
               class="assistant-markdown streaming"
               aria-live="polite"
             />
-            <p v-if="message.status === 'pending'" class="message-pending" role="status"><ElIcon class="is-loading"><Loading /></ElIcon>{{ liveReplies.get(message.id)?.stage || '正在生成，完成后会自动显示…' }}</p>
+            <p v-if="message.status === 'pending'" class="message-pending" role="status"><ElIcon class="is-loading"><Loading /></ElIcon>{{ liveReplies.get(message.id)?.stage || '正在生成，完成后会自动显示…' }}<span v-if="waitedSeconds(message) >= 5" class="pending-elapsed">已等待 {{ waitedSeconds(message) }} 秒</span></p>
             <div v-if="message.artifacts?.length" class="message-artifacts">
               <section
                 v-for="artifact in message.artifacts"
@@ -1857,6 +1878,11 @@ onBeforeUnmount(() => {
   margin: 12px 0;
   color: var(--xi-semantic-color-text-brand);
   font-size: 14px;
+}
+.pending-elapsed {
+  color: var(--xi-semantic-color-text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .message-artifacts {
   display: grid;
