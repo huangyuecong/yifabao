@@ -21,26 +21,13 @@ import {
   User,
 } from '@element-plus/icons-vue'
 import { useFullscreen } from '@vueuse/core'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { catalogApi } from '@/api/agent/catalog'
 import { contentApi } from '@/api/agent/content'
 import { isStandaloneMode } from '@/auth/workspaceMode'
 import { contentCreateViewKey, contentTaskViewKey } from '@/router/videoEditorRouteSession'
-import CatalogContentsView from './content/CatalogContentsView.vue'
-import CatalogProductsView from './content/CatalogProductsView.vue'
-import CatalogPublishView from './content/CatalogPublishView.vue'
-import CatalogRecordsView from './content/CatalogRecordsView.vue'
-import CatalogReviewView from './content/CatalogReviewView.vue'
-import ContentAccessView from './content/ContentAccessView.vue'
-import ContentAuditView from './content/ContentAuditView.vue'
-import ContentAutomationView from './content/ContentAutomationView.vue'
-import ContentChatView from './content/ContentChatView.vue'
 import ContentHomeView from './content/ContentHomeView.vue'
-import ContentLibraryView from './content/ContentLibraryView.vue'
-import ContentServicesView from './content/ContentServicesView.vue'
-import ContentTaskView from './content/ContentTaskView.vue'
-import ContentVersionsView from './content/ContentVersionsView.vue'
 import { normalizeStageKey } from './content/contentWorkflow'
 import { useLocalAccess } from './content/localAccess'
 import { pendingReviewCount } from './content/reviewBadge'
@@ -49,6 +36,33 @@ import './content/content-theme.css'
 import './content/catalog.css'
 
 defineOptions({ name: 'ContentWorkbench' })
+// Pages load on first visit (code splitting); the home page stays in the shell chunk.
+const loadCatalogContentsView = () => import('./content/CatalogContentsView.vue')
+const loadCatalogProductsView = () => import('./content/CatalogProductsView.vue')
+const loadCatalogPublishView = () => import('./content/CatalogPublishView.vue')
+const loadCatalogRecordsView = () => import('./content/CatalogRecordsView.vue')
+const loadCatalogReviewView = () => import('./content/CatalogReviewView.vue')
+const loadContentAccessView = () => import('./content/ContentAccessView.vue')
+const loadContentAuditView = () => import('./content/ContentAuditView.vue')
+const loadContentAutomationView = () => import('./content/ContentAutomationView.vue')
+const loadContentChatView = () => import('./content/ContentChatView.vue')
+const loadContentLibraryView = () => import('./content/ContentLibraryView.vue')
+const loadContentServicesView = () => import('./content/ContentServicesView.vue')
+const loadContentTaskView = () => import('./content/ContentTaskView.vue')
+const loadContentVersionsView = () => import('./content/ContentVersionsView.vue')
+const CatalogContentsView = defineAsyncComponent(loadCatalogContentsView)
+const CatalogProductsView = defineAsyncComponent(loadCatalogProductsView)
+const CatalogPublishView = defineAsyncComponent(loadCatalogPublishView)
+const CatalogRecordsView = defineAsyncComponent(loadCatalogRecordsView)
+const CatalogReviewView = defineAsyncComponent(loadCatalogReviewView)
+const ContentAccessView = defineAsyncComponent(loadContentAccessView)
+const ContentAuditView = defineAsyncComponent(loadContentAuditView)
+const ContentAutomationView = defineAsyncComponent(loadContentAutomationView)
+const ContentChatView = defineAsyncComponent(loadContentChatView)
+const ContentLibraryView = defineAsyncComponent(loadContentLibraryView)
+const ContentServicesView = defineAsyncComponent(loadContentServicesView)
+const ContentTaskView = defineAsyncComponent(loadContentTaskView)
+const ContentVersionsView = defineAsyncComponent(loadContentVersionsView)
 
 type ContentView = 'home' | 'task' | 'chat' | 'library' | 'versions' | 'services' | 'access' | 'audit'
   | 'automation' | 'products' | 'review' | 'contents' | 'publish' | 'records'
@@ -143,7 +157,21 @@ async function loadStatus() {
 }
 
 let statusTimer: ReturnType<typeof setInterval> | undefined
+// Warm the cache with the everyday pages once the browser is idle, so the first
+// switch to them is instant without putting them in the initial download.
+function prefetchPages() {
+  const pages = [loadCatalogProductsView, loadCatalogReviewView, loadCatalogContentsView, loadCatalogPublishView]
+  const run = () => pages.forEach(load => void load().catch(() => {}))
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(run, { timeout: 4000 })
+  }
+  else {
+    setTimeout(run, 1500)
+  }
+}
+
 onMounted(() => {
+  prefetchPages()
   void loadStatus()
   statusTimer = setInterval(() => void loadStatus(), 15000)
 })
