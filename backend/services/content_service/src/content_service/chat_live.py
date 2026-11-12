@@ -54,6 +54,11 @@ def _emit(reply_id: str, kind: str, data: dict) -> None:
         _condition.notify_all()
 
 
+def event(reply_id: str, kind: str, data: dict) -> None:
+    """A structured event, e.g. the Agent's "plan" and "step" updates."""
+    _emit(reply_id, kind, data)
+
+
 def stage(reply_id: str, label: str) -> None:
     _emit(reply_id, "stage", {"label": label})
 

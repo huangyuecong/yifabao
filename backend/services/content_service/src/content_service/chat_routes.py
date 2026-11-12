@@ -58,7 +58,7 @@ class ChatMessageCreate(BaseModel):
     model_id: str | None = Field(default=None, min_length=1, max_length=64)
     content: str = Field(default="", max_length=16000)
     attachment_ids: list[str] = Field(default_factory=list, max_length=8)
-    output: Literal["auto", "text", "doc", "docx", "pdf", "image", "video"] = "auto"
+    output: Literal["auto", "text", "doc", "docx", "pdf", "image", "video", "agent"] = "auto"
     reference_artifact_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
 
     @field_validator("attachment_ids")
@@ -269,6 +269,7 @@ def _generate(
             history,
             request,
             output,
+            identity,
         )
     except Exception:
         store.finish(conversation_id, operation_id, assistant_id, error="生成任务未启动，请重试")

@@ -186,6 +186,8 @@ class ChatStore:
             item["output"] = request.get("output", "auto")
             if request.get("routing"):
                 item["routing"] = request["routing"]
+            if row["role"] == "assistant" and request.get("agent"):
+                item["agent"] = request["agent"]
             messages.append(item)
         return {
             **{
@@ -322,7 +324,15 @@ class ChatStore:
         return operation_id, assistant_id, history
 
     def finish(
-        self, conversation_id, operation_id, assistant_id, *, content=None, error=None, artifacts=()
+        self,
+        conversation_id,
+        operation_id,
+        assistant_id,
+        *,
+        content=None,
+        error=None,
+        artifacts=(),
+        trace=None,
     ):
         with self.connect(write=True) as connection:
             conversation = connection.execute(
@@ -354,8 +364,12 @@ class ChatStore:
                         ),
                     )
                 connection.execute(
-                    "UPDATE messages SET status='completed',content=?,error=NULL WHERE id=?",
-                    (content, assistant_id),
+                    "UPDATE messages SET status='completed',content=?,error=NULL,request_json=? WHERE id=?",
+                    (
+                        content,
+                        json.dumps({"agent": trace} if trace else {}, ensure_ascii=False),
+                        assistant_id,
+                    ),
                 )
             connection.execute(
                 "UPDATE conversations SET operation_id=NULL,operation_until=NULL,updated_at=? WHERE id=?",

@@ -4,7 +4,7 @@ import { agentFetchInit, createAgentClient } from './http'
 
 export type ChatModelKind = 'chat' | 'image' | 'video'
 export type ChatProviderSource = 'text' | 'image' | 'video'
-export type ChatOutput = 'auto' | 'text' | 'doc' | 'docx' | 'pdf' | 'image' | 'video'
+export type ChatOutput = 'auto' | 'text' | 'doc' | 'docx' | 'pdf' | 'image' | 'video' | 'agent'
 
 export interface ChatModel {
   id: string
@@ -65,7 +65,32 @@ export interface ChatAttachment {
   frame_count?: number
 }
 
-export type ChatTool = 'answer_in_chat' | 'create_document' | 'generate_image' | 'generate_video'
+export type ChatTool = 'answer_in_chat' | 'create_document' | 'generate_image' | 'generate_video' | 'operate_workbench'
+
+/** One tool call made by the operations-assistant Agent. */
+export interface AgentStep {
+  index: number
+  tool: string
+  label: string
+  args: string
+  thought: string
+  writes: boolean
+  status: 'running' | 'done' | 'error'
+  summary?: string
+}
+
+/** A follow-up the Agent hands back to the user, e.g. confirming a publish on its page. */
+export interface AgentAction {
+  type: 'open_publish' | 'open_page'
+  path: string
+  label: string
+}
+
+export interface AgentTrace {
+  plan: string[]
+  steps: AgentStep[]
+  actions: AgentAction[]
+}
 
 /** How the tool for a question was chosen: by the model's function call, or by the rule fallback. */
 export interface ChatRouting {
@@ -86,10 +111,13 @@ export interface ChatMessage {
   output?: ChatOutput
   reference_artifact_id?: string
   routing?: ChatRouting
+  agent?: AgentTrace
 }
 
 export type ChatStreamEvent
   = | { type: 'stage', label: string }
+    | { type: 'plan', items: string[] }
+    | { type: 'step', step: AgentStep }
     | { type: 'delta', text: string }
     | { type: 'reset' }
     | { type: 'end', live: boolean }
@@ -202,6 +230,12 @@ function parseStreamEvent(block: string): ChatStreamEvent | undefined {
   }
   if (type === 'delta') {
     return { type, text: String(value.text || '') }
+  }
+  if (type === 'plan') {
+    return { type, items: Array.isArray(value.items) ? value.items.map(String) : [] }
+  }
+  if (type === 'step') {
+    return { type, step: value as unknown as AgentStep }
   }
   if (type === 'reset') {
     return { type }

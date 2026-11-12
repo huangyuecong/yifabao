@@ -38,3 +38,5 @@ backend/tests/test_knowledge_installer.py
 launcher/open-server-android.local.psd1
 # Derived from the company-internal UI specification
 frontend/docs/雅酿UI知识库.md
+# Frontend build output
+frontend/dist*/

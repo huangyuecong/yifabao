@@ -612,8 +612,10 @@ def _run(
     history,
     request,
     output,
+    identity=None,
 ):
     aid = None
+    trace = None
     stop = Event()
     try:
         Thread(
@@ -647,6 +649,10 @@ def _run(
                 and metadata.get("has_audio") is False
             ):
                 reply += "\n本次已请求生成声音，但模型返回的视频不含音轨。可以要求重新生成有声版本，或在视频制作中添加配音和音乐。"
+        elif output == "agent":
+            from . import chat_agent
+
+            reply, trace = chat_agent.run(settings, model, history, identity, assistant_id)
         else:
             document_text = document_conversion_source(history, request, reference_text, output)
             if document_text:
@@ -710,7 +716,12 @@ def _run(
                 artifacts = [prepare_artifact(store, aid, result)]
         if (
             not store.finish(
-                conversation_id, operation_id, assistant_id, content=reply, artifacts=artifacts
+                conversation_id,
+                operation_id,
+                assistant_id,
+                content=reply,
+                artifacts=artifacts,
+                trace=trace,
             )
             and aid
         ):

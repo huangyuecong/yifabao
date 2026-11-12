@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChatArtifact, ChatAttachment, ChatConversation, ChatConversationSummary, ChatMessage, ChatModelCatalog, ChatRouting } from '@/api/agent/chat'
+import type { AgentStep, ChatArtifact, ChatAttachment, ChatConversation, ChatConversationSummary, ChatMessage, ChatModelCatalog, ChatRouting } from '@/api/agent/chat'
 import {
   ArrowUp,
   ChatDotRound,
@@ -10,6 +10,7 @@ import {
   Download,
   Loading,
   Menu,
+  Operation,
   Paperclip,
   Picture,
   Plus,
@@ -22,6 +23,7 @@ import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMoun
 import { useRoute, useRouter } from 'vue-router'
 import { chatApi, streamReply } from '@/api/agent/chat'
 import { saveBlob } from '@/api/agent/http'
+import AgentTrace from './AgentTrace.vue'
 
 defineOptions({ name: 'ContentChatView' })
 
@@ -79,7 +81,9 @@ let selectionSequence = 0
 let pollTimer: ReturnType<typeof setTimeout> | undefined
 let streamController: AbortController | undefined
 let streamingId = ''
-const liveReplies = reactive(new Map<string, { text: string, stage: string }>())
+const liveReplies = reactive(new Map<string, { text: string, stage: string, plan: string[], steps: AgentStep[] }>())
+// Send to the operations-assistant Agent directly instead of letting the model choose.
+const agentMode = ref(false)
 let pollSequence = 0
 const objectUrls = new Set<string>()
 const boundAttachments = new Set<string>()
@@ -121,7 +125,7 @@ const sendErrorHint = computed(() => submissionUncertain.value
   : draft.value.reference || draft.value.files.length
     ? '输入和参考资料已保留；请按提示检查或重新上传文件，再点击发送。'
     : '输入已保留；请按提示调整后再点击发送。')
-const examples = ['帮我梳理这份资料的重点', '帮我校对文档的错别字和标点符号', '根据产品特点写一段推广文案']
+const examples = ['工作台现在有多少待审核的内容？', '给名称含“雅集”的商品生成宣传文案', '帮我梳理这份资料的重点', '根据产品特点写一段推广文案']
 
 function artifactReady(artifact: ChatArtifact) {
   return artifact.status === 'ready' || artifact.status === 'completed'
@@ -350,7 +354,7 @@ function followReply() {
   const controller = new AbortController()
   streamController = controller
   streamingId = reply.id
-  liveReplies.set(reply.id, { text: '', stage: '' })
+  liveReplies.set(reply.id, { text: '', stage: '', plan: [], steps: [] })
   void streamReply(conversation.id, reply.id, (event) => {
     const state = liveReplies.get(reply.id)
     if (!state) {
@@ -358,6 +362,15 @@ function followReply() {
     }
     if (event.type === 'stage') {
       state.stage = event.label
+    }
+    else if (event.type === 'plan') {
+      state.plan = event.items
+    }
+    else if (event.type === 'step') {
+      const index = state.steps.findIndex(step => step.index === event.step.index)
+      state.steps = index < 0
+        ? [...state.steps, event.step]
+        : state.steps.map((step, position) => position === index ? event.step : step)
     }
     else if (event.type === 'delta') {
       const nearBottom = messageList.value
@@ -395,6 +408,7 @@ const toolLabels: Record<ChatRouting['tool'], string> = {
   create_document: '生成文档',
   generate_image: '生成图片',
   generate_video: '生成视频',
+  operate_workbench: '运营助手',
 }
 
 function routingOf(message: ChatMessage) {
@@ -845,7 +859,7 @@ async function send() {
     const response = await chatApi.send(id, {
       content: savedDraft.text.trim(),
       attachment_ids: savedDraft.files.flatMap(item => item.attachment ? [item.attachment.id] : []),
-      output: 'auto',
+      output: agentMode.value ? 'agent' : 'auto',
       reference_artifact_id: savedDraft.reference?.id,
     })
     adoptConversation(response)
@@ -1165,6 +1179,18 @@ onBeforeUnmount(() => {
                 <span><strong>{{ attachment.name }}</strong><small>{{ fileSize(attachment.size) }}{{ attachment.kind === 'video' ? ' · 关键帧识别，不含音轨' : '' }}</small></span>
               </button>
             </div>
+            <AgentTrace
+              v-if="message.role === 'assistant' && message.status === 'pending' && (liveReplies.get(message.id)?.plan.length || liveReplies.get(message.id)?.steps.length)"
+              :plan="liveReplies.get(message.id)!.plan"
+              :steps="liveReplies.get(message.id)!.steps"
+              live
+            />
+            <AgentTrace
+              v-else-if="message.role === 'assistant' && message.agent && (message.agent.plan.length || message.agent.steps.length || message.agent.actions.length)"
+              :plan="message.agent.plan"
+              :steps="message.agent.steps"
+              :actions="message.agent.actions"
+            />
             <div v-if="message.role === 'user' && message.content" class="user-message-text">{{ message.content }}</div>
             <div v-else-if="message.content" v-dompurify-html="markdown.render(message.content)" class="assistant-markdown" />
             <div
@@ -1349,6 +1375,17 @@ onBeforeUnmount(() => {
                 @click="fileInput?.click()"
               >
                 添加附件
+              </ElButton>
+              <ElButton
+                text
+                :icon="Operation"
+                class="agent-toggle"
+                :class="{ 'is-active': agentMode }"
+                :aria-pressed="agentMode"
+                title="开启后直接交给运营助手：查询商品、审核和发布数据，发起生成，准备发布"
+                @click="agentMode = !agentMode"
+              >
+                运营助手
               </ElButton>
             </div>
             <ElButton
@@ -1700,6 +1737,10 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   color: var(--xi-semantic-color-text-tertiary);
   font-size: 12px;
+}
+.agent-toggle.is-active {
+  color: var(--xi-semantic-color-feedback-info-text);
+  background: var(--xi-semantic-color-feedback-info-background-subtle);
 }
 .routing-tag {
   display: inline-block;
