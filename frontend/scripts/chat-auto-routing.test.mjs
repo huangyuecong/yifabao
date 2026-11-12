@@ -27,6 +27,7 @@ const moduleUrls = {
   '@/api/agent/aiModels': dataModule('export const aiModelsApi = new Proxy({}, { get: (_, method) => (...args) => globalThis.__chatAutoRoutingTest.models[method](...args) });'),
   '@/api/agent/http': dataModule('export const saveBlob = () => {};'),
   './contentWorkflow': dataModule('export const formatDate = value => String(value || ""); export const parseContentDateTime = value => (value ? new Date(value) : null);'),
+  './voiceInput': dataModule(`import { ref } from "${import.meta.resolve('vue')}"; export const useVoiceInput = () => ({ state: ref('idle'), seconds: ref(0), active: ref(false), supported: ref(false), start() {}, stop() {}, cancel() {}, toggle() {} });`),
   './AgentTrace.vue': dataModule('export default { name: "AgentTrace", props: ["plan", "steps", "actions", "live"], render: () => null };'),
   './aiModelForm': dataModule(transpile(readFileSync(new URL('../src/views/agent/content/aiModelForm.ts', import.meta.url), 'utf8'))),
 }

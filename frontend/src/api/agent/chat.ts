@@ -24,6 +24,8 @@ export interface ChatModelCatalog {
   models: ChatModel[]
   max_attachment_bytes: number
   supported_extensions: string[]
+  /** The content service can transcribe recordings (a recognition model is configured). */
+  speech_input?: boolean
   message?: string
   document_formats?: ('doc' | 'docx' | 'pdf')[]
   capabilities?: {
@@ -194,6 +196,12 @@ export const chatApi = {
     data: { model_id: modelId },
     timeout: 300_000,
   }),
+  /** Voice input fallback: one short recording to text (the recording is not stored). */
+  transcribe: async (recording: Blob) => {
+    const data = new FormData()
+    data.append('file', recording, recording.type.includes('mp4') ? 'speech.mp4' : 'speech.webm')
+    return (await request<{ text: string }>({ url: `${base}/transcriptions`, method: 'POST', data, timeout: 120_000 })).text
+  },
   upload: (file: File, onUploadProgress?: (event: AxiosProgressEvent) => void) => {
     const data = new FormData()
     data.append('file', file)

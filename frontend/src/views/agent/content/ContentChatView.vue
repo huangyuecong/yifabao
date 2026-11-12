@@ -10,6 +10,7 @@ import {
   Download,
   Loading,
   Menu,
+  Microphone,
   Operation,
   Paperclip,
   Picture,
@@ -25,6 +26,7 @@ import { chatApi, streamReply } from '@/api/agent/chat'
 import { saveBlob } from '@/api/agent/http'
 import AgentTrace from './AgentTrace.vue'
 import { formatDate, parseContentDateTime } from './contentWorkflow'
+import { useVoiceInput } from './voiceInput'
 
 defineOptions({ name: 'ContentChatView' })
 
@@ -85,6 +87,36 @@ let streamingId = ''
 const liveReplies = reactive(new Map<string, { text: string, stage: string, plan: string[], steps: AgentStep[] }>())
 // Send to the operations-assistant Agent directly instead of letting the model choose.
 const agentMode = ref(false)
+// Voice input appends what is said to the text that was in the box when it started.
+let voiceBase = ''
+const {
+  state: voiceState,
+  seconds: voiceSeconds,
+  active: voiceActive,
+  supported: voiceSupported,
+  toggle: toggleVoiceInput,
+  cancel: cancelVoice,
+} = useVoiceInput({
+  onText: (text) => {
+    draft.value.text = voiceBase + text
+  },
+  transcribe: () => (catalog.value.speech_input ? recording => chatApi.transcribe(recording) : undefined),
+  notify: (level, message) => ElMessage[level](message),
+})
+const voiceLabel = computed(() => {
+  if (voiceState.value === 'transcribing') {
+    return '识别中…'
+  }
+  return voiceActive.value ? `停止（${voiceSeconds.value} 秒）` : '语音输入'
+})
+
+function toggleVoice() {
+  if (!voiceActive.value) {
+    voiceBase = draft.value.text
+  }
+  toggleVoiceInput()
+  composer.value?.focus()
+}
 let pollSequence = 0
 const objectUrls = new Set<string>()
 const boundAttachments = new Set<string>()
@@ -854,6 +886,7 @@ async function send() {
   if (!canSend.value) {
     return
   }
+  cancelVoice()
   const editableDraft = draft.value
   const savedDraft: Draft = { text: editableDraft.text, files: [...editableDraft.files], reference: editableDraft.reference }
   const previousUserId = lastUser.value?.id
@@ -1022,10 +1055,12 @@ onActivated(() => {
 })
 onDeactivated(() => {
   viewActive = false
+  cancelVoice()
   stopPolling()
 })
 onBeforeUnmount(() => {
   disposed = true
+  cancelVoice()
   stopPolling()
   Object.values(drafts.value).forEach(value => value.files.forEach((item) => {
     item.removed = true
@@ -1404,6 +1439,19 @@ onBeforeUnmount(() => {
               >
                 运营助手
               </ElButton>
+              <ElButton
+                v-if="voiceSupported"
+                text
+                :icon="Microphone"
+                class="voice-toggle"
+                :class="{ 'is-active': voiceActive }"
+                :aria-pressed="voiceActive"
+                :disabled="busy || voiceState === 'transcribing'"
+                title="说话自动转成文字，最长 1 分钟；再点一次停止"
+                @click="toggleVoice"
+              >
+                {{ voiceLabel }}
+              </ElButton>
             </div>
             <ElButton
               type="primary"
@@ -1754,6 +1802,10 @@ onBeforeUnmount(() => {
   margin-bottom: 8px;
   color: var(--xi-semantic-color-text-tertiary);
   font-size: 12px;
+}
+.voice-toggle.is-active {
+  color: var(--xi-semantic-color-feedback-danger-text);
+  background: var(--xi-semantic-color-feedback-danger-background-subtle);
 }
 .agent-toggle.is-active {
   color: var(--xi-semantic-color-feedback-info-text);

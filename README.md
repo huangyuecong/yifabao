@@ -16,7 +16,7 @@
 | MCP / Function Calling | 对话先由模型通过函数调用在 5 个工具中选择（失败时回退规则）；工作台工具同时通过 **MCP 协议**（2025-06-18，Streamable HTTP + stdio 桥接）开放给外部 AI 客户端 | `chat_tools.py`、`mcp_server.py`、`backend/scripts/mcp_stdio.py` |
 | 多模态 | 视觉模型识别商品图并分类；文生图 / 参考图生成宣传图；图生视频镜头 + FFmpeg 合成，含配音、配乐和字幕 | `automation_content.py`、`catalog_video.py`、`catalog_ai_video.py` |
 | AI 安全与可控 | 广告法禁用词和敏感词规则拦截生成结果；资料、图片文字、对话内容一律按“数据而非指令”处理；生成结果必须人工审核；Agent 写操作需要权限且不能发布 | `catalog_routes.py`、`agent_tools.py` |
-| AI 交互体验 | 对话回复 SSE 流式输出；生成图片、视频、文档时显示阶段；Agent 计划和步骤可视化 | `chat_live.py`、`ContentChatView.vue` |
+| AI 交互体验 | 对话回复 SSE 流式输出；生成图片、视频、文档时显示阶段；Agent 计划和步骤可视化；**语音输入**：浏览器自带语音识别实时转文字，可选服务端识别兜底 | `chat_live.py`、`ContentChatView.vue`、`voiceInput.ts`、`speech_input.py` |
 
 ### RAG 效果评测
 

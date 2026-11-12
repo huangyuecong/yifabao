@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agent_core import Identity
 
-from . import chat_live, chat_tools
+from . import chat_live, chat_tools, speech_input
 from .access_control import get_content_identity as get_identity
 from .access_routes import PrivateAccessRoute
 from .ai_model_config import require_manager, write_header
@@ -76,12 +76,23 @@ class RetryRequest(BaseModel):
 
 @router.get("/models")
 def models(_: Identity = Depends(get_identity)):
+    settings = get_runtime_settings()
     return {
-        **chat_configuration(get_runtime_settings()),
+        **chat_configuration(settings),
         "max_attachment_bytes": MAX_ATTACHMENT_BYTES,
         "max_files": 8,
         "supported_extensions": SUPPORTED_EXTENSIONS,
+        "speech_input": speech_input.available(settings),
     }
+
+
+@router.post("/transcriptions")
+def transcribe_audio(file: UploadFile = File(...), _: Identity = Depends(get_identity)):
+    """Voice input: turn one short recording into text for the message box (not stored)."""
+    content = file.file.read(speech_input.MAX_AUDIO_BYTES + 1)
+    content_type = (file.content_type or "").split(";", 1)[0].strip().lower()
+    text = speech_input.transcribe(get_runtime_settings(), content, file.filename or "speech.webm", content_type)
+    return {"text": text}
 
 
 @router.get("/models/admin")
