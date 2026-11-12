@@ -122,7 +122,7 @@ test('AI 服务入口始终可发起且失败后保留重试入口', () => {
   assert.doesNotMatch(taskView, /service\?\.status === 'unavailable'/u)
   assert.doesNotMatch(taskView, /:disabled="generationUnavailable"/u)
   assert.doesNotMatch(servicesView, /调用异常时页面会提示|之后可再次尝试|serviceMessage/u)
-  assert.match(servicesView, /查看各项创作功能与支持的参数/u)
+  assert.match(servicesView, /为每一项创作能力，选择合适的 AI 模型。/u)
   assert.doesNotMatch(servicesView, /service\.message/u)
   assert.match(workflow, /available: '可使用'/u)
   assert.match(workflow, /degraded: '部分服务受限'/u)
@@ -132,13 +132,12 @@ test('AI 服务入口始终可发起且失败后保留重试入口', () => {
 
 test('工作台如实展示服务状态且不把首次状态当作不可用', () => {
   assert.match(workbench, /serviceStatusPresentation\(overallStatus\.value\)/u)
-  assert.match(workbench, /overallStatus = ref[^\n]+\('available'\)/u)
-  assert.match(workbench, /overallStatus\.value = undefined/u)
-  assert.match(workbench, /statusPresentation\.value\.type/u)
-  assert.match(workbench, /<ElButton[^>]*v-if="statusError"[^>]*@click="loadStatus"/u)
-  assert.match(home, /serviceStatus\.value\?\.services\.length \?\? 0/u)
-  assert.doesNotMatch(home, /filter\(item => item\.status === 'available'\)/u)
-  assert.match(home, /可直接开始创作；调用异常时页面会提示，可再次尝试/u)
+  // Unknown until the first response, and a failed check stays unknown ("状态待确认").
+  assert.match(workbench, /const overallStatus = ref<ContentServiceStatus\['overall'\]>\(\)/u)
+  assert.match(workbench, /overallStatus\.value = status\.status === 'fulfilled' \? status\.value\.overall : undefined/u)
+  assert.doesNotMatch(workbench, /overallStatus\.value = 'unavailable'/u)
+  assert.match(workbench, /is-\$\{statusPresentation\.type \|\| 'info'\}/u)
+  assert.match(workbench, /setInterval\(\(\) => void loadStatus\(\), 15000\)/u)
   assert.doesNotMatch(servicesView, /待验证|尚待完成实际调用验证/u)
 })
 
@@ -328,14 +327,13 @@ test('生成结果卡不展示内部模型与数据元信息', () => {
   assert.doesNotMatch(resourcePicker, /可选，不选择则仅按当前内容生成/u)
 })
 
-test('内容首页主视觉文案和按钮位于左侧且移除人工确认说明', () => {
-  const hero = home.match(/<section class="home-intro">([\s\S]*?)<\/section>/u)?.[1] ?? ''
-  const heroStyle = home.match(/\.home-intro\s*\{([\s\S]*?)\}/u)?.[1] ?? ''
-  assert.match(hero, /从一个想法，到一套可确认、可追溯的内容资产/u)
-  assert.match(hero, /开始完整内容创作/u)
-  assert.doesNotMatch(hero, /生成过程中的选题、文案、图片、分镜、配音字幕和视频均由人工查看、修改与确认/u)
-  assert.match(heroStyle, /align-items: flex-start;/u)
-  assert.doesNotMatch(heroStyle, /align-items: flex-end;/u)
+test('工作台首页展示流程概况、创作工具和最近记录，且不放人工确认说明', () => {
+  assert.match(home, /<h1>工作台<\/h1>/u)
+  assert.match(home, /aria-label="流程概况"/u)
+  assert.match(home, /<h2 id="tools-title" class="block-title">创作工具<\/h2>/u)
+  assert.match(home, /<h2>最近的创作任务<\/h2>/u)
+  assert.match(home, /<h2>最近的发布<\/h2>/u)
+  assert.doesNotMatch(home, /生成过程中的选题、文案、图片、分镜、配音字幕和视频均由人工查看、修改与确认/u)
 })
 
 test('文案结果卡固定使用确认标题并只展示标题和正文', () => {
@@ -433,11 +431,11 @@ test('图片制作本地多图与知识库视觉资料共用模型参考图上�
   assert.match(imageControls, /:remaining="referenceRemainingCount"/u)
 
   assert.match(imageReferenceLimits, /item\.resource_entry_id \|\| item\.id/u)
-  assert.match(imageReferenceLimits, /\['image', 'logo'\]\.includes\(item\.resource_kind\)/u)
+  assert.match(imageReferenceLimits, /\['image', 'logo'\]\.includes\(resourceMediaKind\(item\)\)/u)
   assert.match(imageReferenceLimits, /for \(const id of selection\.knowledgeResourceIds\)/u)
   assert.match(
     imageReferenceLimits,
-    /import \{ relatedMedia \} from '\.\/contentResourceCatalog'/u,
+    /import \{[^}]*\brelatedMedia\b[^}]*\} from '\.\/contentResourceCatalog'/u,
   )
   assert.match(imageReferenceLimits, /export function productVisualReferenceResources/u)
   assert.match(imageReferenceLimits, /relatedMedia\(product, resources\)/u)
@@ -484,7 +482,7 @@ test('图片修改请求的幂等键显式包含本次修改指令', () => {
 test('历史内容支持时间搜索、状态筛选、分页与多层版本查看', () => {
   assert.match(history, /<h2>历史任务<\/h2>/u)
   assert.match(history, /type="daterange"/u)
-  assert.match(history, /搜索任务、主题、产品或内容类型/u)
+  assert.match(history, /placeholder="搜索任务、主题、产品"/u)
   assert.match(history, /v-for="task in paginatedTasks"/u)
   assert.match(history, /<ElPagination/u)
   assert.match(history, /layout="total, sizes, prev, pager, next, jumper"/u)

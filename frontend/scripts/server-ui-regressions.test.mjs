@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { parse } from 'vue/compiler-sfc'
+import { categoryLabel, isProductResource } from '../src/views/agent/content/contentResourceCatalog.ts'
 
 function component(path) {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -63,6 +64,9 @@ function libraryFixture() {
   const writes = []
   const scope = {
     computed,
+    // Shared with other pages since the library moved them to contentResourceCatalog.ts.
+    categoryLabel,
+    isProductResource,
     ...uploadScope,
     versionFile: ref(),
     versionKindBeforeReplacement: ref('document'),
@@ -98,19 +102,22 @@ function libraryFixture() {
       listLibraryCategories: async () => [],
     },
   }
-  return { scope, messages, writes, ...executeDeclarations(library, ['categoryLabels', 'categoryLabel', 'categoryOptions', 'chooseFile', 'chooseVersionFile', 'changeResourceKind', 'cancelVersionFile', 'createVersion', 'finishResourceSave', 'saveResource', 'saveTextResource', 'uploadResource'], scope) }
+  return { scope, messages, writes, ...executeDeclarations(library, ['categoryOptions', 'categoryValue', 'chooseFile', 'selectResourceFile', 'chooseVersionFile', 'selectVersionFile', 'changeResourceKind', 'cancelVersionFile', 'createVersion', 'finishResourceSave', 'saveResource', 'saveTextResource', 'uploadResource'], scope) }
 }
 
-test('empty library offers named categories and saves the chosen category on first entry', async () => {
+test('empty library offers the service categories by name and saves the chosen category on first entry', async () => {
   const f = libraryFixture()
-  const option = f.categoryOptions.value.find(item => item.value === 'brand_logo')
+  // Categories come from the content service, even before any resource exists.
+  f.scope.categories.value = [{ id: 'brand_logo', name: '品牌标识', resource_kinds: ['document'] }]
+  const option = f.categoryOptions('document').find(item => item.id === 'brand_logo')
   assert.equal(option.label, '品牌标识')
   f.scope.resourceForm.name = '企业 Logo'
   await f.saveTextResource()
   assert.equal(f.writes.length, 0)
-  assert.match(f.messages[0], /请选择资料分类/)
+  assert.match(f.messages[0], /请填写资料分类/)
   assert.doesNotMatch(f.messages[0], /资料名称/)
-  f.scope.resourceForm.category = option.value
+  // The user picks the readable name; the saved record keeps the category ID.
+  f.scope.resourceForm.category = option.label
   await f.saveTextResource()
   assert.equal(f.writes[0].name, '企业 Logo')
   assert.equal(f.writes[0].category, 'brand_logo')
@@ -134,7 +141,9 @@ test('upload validation reports the actual missing field, then keeps file and ca
 
 test('one save action uploads media, preserves Logo, and never calls text creation', async () => {
   for (const [name, requested, expected] of [
-    ['reference.JPG', 'product', 'image'],
+    // Images stay a Logo or a product entry when that type was chosen; otherwise they become images.
+    ['reference.JPG', 'product', 'product'],
+    ['reference.JPG', 'document', 'image'],
     ['logo.png', 'logo', 'logo'],
     ['clip.mp4', 'document', 'video'],
     ['voice.mp3', 'spec', 'audio'],
@@ -326,13 +335,17 @@ test('editing basic details preserves hidden metadata including structured facts
     versionDialogOpen: ref(false),
     busy: ref(''),
     resources: ref([]),
+    categories: ref([]),
+    categoryLabel,
+    isProductResource,
+    load: async () => {},
     ElMessage: { warning() {}, success() {}, error(value) {
       throw new Error(value)
     } },
     messageOf: String,
     contentApi: { createLibraryVersion: async (id, value) => writes.push({ id, value }), listLibrary: async () => [] },
   }
-  const f = executeDeclarations(library, ['openVersionEditor', 'createVersion'], scope)
+  const f = executeDeclarations(library, ['categoryOptions', 'categoryValue', 'openVersionEditor', 'createVersion'], scope)
   f.openVersionEditor(original)
   scope.versionForm.name = '修改名称'
   await f.createVersion()

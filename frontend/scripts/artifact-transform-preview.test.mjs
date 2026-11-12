@@ -83,14 +83,14 @@ function fixture(t, initial = artifact()) {
   const messages = []
   const mutations = { flush: 0, refresh: 0, errors: 0 }
   const hooks = []
-  const apiScope = {
-    request(config) {
-      requests.push(plain(config))
-      const request = deferred()
-      pending.push(request)
-      return request.promise
-    },
+  function capture(config) {
+    requests.push(plain(config))
+    const request = deferred()
+    pending.push(request)
+    return request.promise
   }
+  // AI previews go through generationRequest (generation error wrapping); others through request.
+  const apiScope = { request: capture, generationRequest: capture }
   vm.createContext(apiScope)
   vm.runInContext(apiCode, apiScope)
   const scope = {

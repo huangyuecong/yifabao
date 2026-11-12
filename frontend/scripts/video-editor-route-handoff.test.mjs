@@ -7,7 +7,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { computed, createRenderer, defineComponent, h, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { parse } from 'vue/compiler-sfc'
-import { beginVideoEditorRouteHandoff, CONTENT_AGENT_SHELL_KEY, contentRoutePageKey, contentTaskViewKey } from '../src/router/videoEditorRouteSession.ts'
+import { beginVideoEditorRouteHandoff, CONTENT_AGENT_SHELL_KEY, contentCreateViewKey, contentRoutePageKey, contentTaskViewKey } from '../src/router/videoEditorRouteSession.ts'
 
 const taskSource = readFileSync(new URL('../src/views/agent/content/ContentTaskView.vue', import.meta.url), 'utf8')
 const pageSource = readFileSync(new URL('../src/views/agent/ContentWorkbench.vue', import.meta.url), 'utf8')
@@ -56,6 +56,7 @@ function routeValue(fullPath) {
   const createVideo = fullPath.split(/[?#]/u)[0] === '/agent/content/create/video'
   return {
     fullPath,
+    query: {},
     params: match ? { taskId: match[1], stageKey: match[2] } : {},
     meta: { contentView: match || createVideo ? 'task' : 'home', ...(createVideo ? { contentMode: 'video' } : {}) },
   }
@@ -77,6 +78,7 @@ function fixture() {
     activeStageKey: computed(() => props.stageKey),
     currentMode: computed(() => task.value?.mode || props.mode),
     beginVideoEditorRouteHandoff,
+    contentCreateViewKey,
     router: {
       currentRoute: ref(route),
       async replace(path) {
@@ -103,7 +105,8 @@ function fixture() {
 test('首次保存URL更新复用实际两层组件，编辑器挂载一次并保留正在输入的值', async () => {
   assert.match(appSource, /:key="contentRoutePageKey\(route\)"/u)
   assert.match(appSource, /contentWorkbenchName/u)
-  assert.match(pageSource, /:key="contentTaskViewKey\(route.fullPath, `\$\{taskId\}:\$\{stageKey\}:\$\{currentMode\}`\)"/u)
+  // One task view per task and mode (stage changes do not remount it); new tasks key on their creation request.
+  assert.match(pageSource, /:key="contentTaskViewKey\(\s*route\.fullPath,\s*taskId \? `\$\{taskId\}:\$\{currentMode\}` : contentCreateViewKey\(currentMode, route\.query\.new\),\s*\)"/u)
   assert.match(pageSource, /<keep-alive/u)
   const f = fixture()
   const mounts = { page: 0, task: 0, editor: 0, destroyed: 0 }
@@ -129,7 +132,10 @@ test('首次保存URL更新复用实际两层组件，编辑器挂载一次并�
       mounts.page += 1
     })
     return () => f.route.meta.contentView === 'task'
-      ? h(Task, { key: contentTaskViewKey(f.route.fullPath, `${f.props.taskId}:${f.props.stageKey}:${f.props.mode}`) })
+      ? h(Task, { key: contentTaskViewKey(
+          f.route.fullPath,
+          f.props.taskId ? `${f.props.taskId}:${f.props.mode}` : contentCreateViewKey(f.props.mode, f.route.query?.new),
+        ) })
       : h('div')
   } })
   const app = renderer.createApp({ setup: () => () => h(Page, { key: contentRoutePageKey(f.route) }) })

@@ -99,6 +99,7 @@ const moduleUrls = {
   './ContentResourcePicker.vue': stubComponent,
   './ContentResourcePreview.vue': stubComponent,
   './contentResourceCatalog': dataModule('export const relatedMedia = () => [];'),
+  './contentWorkflow': dataModule('export const formatDate = value => String(value || ""); export const compareContentDateTimeDescending = (left, right) => String(right).localeCompare(String(left));'),
   './localAccess': dataModule(`import { ref } from '${import.meta.resolve('vue')}'; export const useLocalAccess = () => ({ access: ref({ subject: 'test-user' }), hasPermission: () => true, refresh: async () => {} });`),
 }
 const replaced = compiled.content.replace(/from\s+(['"])([^'"]+)\1/gu, (match, quote, specifier) => {

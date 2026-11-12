@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
 import process from 'node:process'
 import ts from 'typescript'
+import { formatContentGenerationError } from '../src/api/agent/contentGenerationErrors.ts'
 
 function scriptSetupSource(path) {
   const filename = new URL(path, import.meta.url)
@@ -133,6 +134,7 @@ const createMediaJobHarness = await compileHarness({
     'friendlyContentError',
     'refreshProjectAssets',
     'messageOf',
+    'formatContentGenerationError',
   ],
   exposed: ['acceptMediaJobUpdate'],
   filename: 'VideoEditorWorkspace.media-job-update.ts',
@@ -275,6 +277,7 @@ test('AI 视频失败结束 loading 且同轮只提示一次，排队重试后�
     friendlyContentError: (message, fallback) => message || fallback,
     refreshProjectAssets: async () => {},
     messageOf: error => String(error),
+    formatContentGenerationError,
   })
   const failed = {
     id: 'video-job-1',

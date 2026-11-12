@@ -307,7 +307,7 @@ test('AI 背景音乐示例只作为空值占位符', () => {
   assert.ok(musicPromptInput, '找不到 AI 背景音乐提示词输入框')
   assert.match(
     musicPromptInput,
-    /placeholder="示例：轻盈克制的东方氛围背景音乐，适合雅酿品牌短片，无人声"/u,
+    /placeholder="示例：轻盈克制的东方氛围背景音乐，适合品牌宣传短片，无人声"/u,
   )
   assert.match(source, /const imageForm = reactive\(\{[\s\S]*?size: '',\s*ratio: ''/u)
   assert.match(source, /:placeholder="imageCandidateSettings\.sizeDefaultLabel"/u)
@@ -316,7 +316,7 @@ test('AI 背景音乐示例只作为空值占位符', () => {
 test('移除 AI 修改候选与独立音效轨并统一为背景音效', () => {
   assert.doesNotMatch(source, /AI 修改候选|生成前后对比候选/u)
   assert.doesNotMatch(source, /<ElOption label="音效" value="sfx"/u)
-  assert.match(source, /<strong>AI生成背景音乐（无人声）<\/strong>/u)
+  assert.match(source, /<strong>AI 生成背景音乐（无人声）<\/strong>/u)
   assert.match(source, /生成背景音乐候选/u)
   assert.match(source, /环境音、碰杯等音效可导入音频后移到背景音效轨/u)
   assert.match(source, /track => track\.kind !== 'sfx'/u)
@@ -346,7 +346,8 @@ test('快捷视频编辑器提供返回工作台入口', () => {
   assert.match(source, /editorHome: \[\]/u)
   assert.match(
     source,
-    /v-if="!workflowMode \|\| initialTask\?\.mode !== 'full'"[\s\S]*?@click="requestEditorHome"[\s\S]*?返回工作台/u,
+    // Always offered now, in every editor mode.
+    /<ElButton\s+@click="requestEditorHome"\s*>\s*返回工作台/u,
   )
   assert.match(source, /let leavingToHome = false/u)
   assert.match(source, /if \(!leavingToHome\)\s*\{\s*emit\('taskCreated', createdId\)/u)

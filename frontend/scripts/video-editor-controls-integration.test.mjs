@@ -44,7 +44,6 @@ const functionNames = [
   'continuePersistedWorkflowRender',
   'trackMediaJob',
   'acceptMediaJobUpdate',
-  'createExactPreview',
   'isVideoPreviewItem',
   'projectAssetFor',
   'projectAssetMediaKind',
@@ -529,89 +528,6 @@ test('恢复已持久化渲染时拒绝旧合成 v1，不误确认历史成片',
   }
   finally {
     fixture.close()
-  }
-})
-
-test('精确预览读取全片字幕方式和真实帧率', async () => {
-  const fixture = setup('full', { subtitle: 'soft', fps: 50 })
-  try {
-    await fixture.actual.createExactPreview()
-    assert.equal(fixture.requests[0].request.subtitle_mode, 'soft')
-    assert.equal(fixture.requests[0].request.fps, 50)
-    assert.equal(fixture.requests[0].request.expected_revision, 3)
-  }
-  finally {
-    fixture.close()
-  }
-})
-
-test('软字幕精确预览保存当前 VTT 快照，重建时回收旧地址且忙碌时不重复创建', async () => {
-  const fixture = setup('full', { subtitle: 'soft' })
-  try {
-    const context = fixture.context
-    const oldUrl = context.URL.createObjectURL(new Blob(['旧字幕'], { type: 'text/vtt' }))
-    context.exactPreviewSubtitleUrl.value = oldUrl
-    context.ownedObjectUrls.add(oldUrl)
-    await fixture.actual.createExactPreview()
-    assert.ok(fixture.revokedUrls.includes(oldUrl))
-    assert.ok(!context.ownedObjectUrls.has(oldUrl))
-    const currentUrl = context.exactPreviewSubtitleUrl.value
-    const snapshot = fixture.createdBlobs.find(item => item.url === currentUrl).blob
-    assert.equal(snapshot.type, 'text/vtt')
-    const expectedSnapshot = timelineWebVtt(context.timeline.value)
-    assert.equal(await snapshot.text(), expectedSnapshot)
-    assert.match(expectedSnapshot, /^WEBVTT/u)
-    assert.match(expectedSnapshot, /字幕一/u)
-    assert.ok(context.ownedObjectUrls.has(currentUrl))
-    findItem(context.timeline.value, 'subtitle').item.content = '后续修改不能改写已送出的快照'
-    assert.equal(await snapshot.text(), expectedSnapshot)
-    await fixture.actual.createExactPreview()
-    assert.equal(fixture.requests.length, 1)
-    assert.equal(fixture.createdBlobs.length, 2)
-    context.exactPreviewBusy.value = false
-    await fixture.actual.createExactPreview()
-    assert.ok(fixture.revokedUrls.includes(currentUrl))
-    const refreshed = fixture.createdBlobs.find(item => item.url === context.exactPreviewSubtitleUrl.value).blob
-    assert.match(await refreshed.text(), /后续修改不能改写已送出的快照/u)
-    context.exactPreviewBusy.value = false
-    fixture.actual.updateSubtitleOutputMode('burn')
-    const softUrl = context.exactPreviewSubtitleUrl.value
-    await fixture.actual.createExactPreview()
-    assert.equal(context.exactPreviewSubtitleUrl.value, '')
-    assert.ok(fixture.revokedUrls.includes(softUrl))
-    assert.ok(!context.ownedObjectUrls.has(softUrl))
-    assert.equal(fixture.createdBlobs.length, 3)
-    const track = template.match(/<track\b[^>]*>/u)?.[0]
-    assert.ok(track, '精确预览应挂载播放器原生字幕轨')
-    assert.match(track, /v-if="exactPreviewSubtitleUrl"/u)
-    assert.match(track, /:src="exactPreviewSubtitleUrl"/u)
-    assert.match(track, /:key="exactPreviewSubtitleUrl"/u)
-    assert.match(track, /kind="subtitles"/u)
-  }
-  finally {
-    fixture.close()
-  }
-})
-
-test('精确预览保存失败或仍有未保存编辑时不生成字幕快照或调用服务，可重试', async () => {
-  for (const options of [{ saveFails: true }, { unsaved: true }, { dirty: true }]) {
-    const fixture = setup('full', { subtitle: 'soft', ...options })
-    try {
-      await fixture.actual.createExactPreview()
-      assert.equal(fixture.context.exactPreviewBusy.value, false)
-      assert.deepEqual(fixture.requests, [])
-      assert.deepEqual(fixture.createdBlobs, [])
-      assert.ok(fixture.messages.some(item => item.level === 'error'))
-      for (const key of Object.keys(options)) {
-        fixture.options[key] = false
-      }
-      await fixture.actual.createExactPreview()
-      assert.equal(fixture.requests.length, 1)
-      assert.equal(fixture.createdBlobs.length, 1)
-    }
-    finally {
-      fixture.close()
-    }
   }
 })
 

@@ -28,7 +28,7 @@ function evaluate(view, names, bindings) {
 }
 
 test('read-only history hides task writes but retains confirmed download', async () => {
-  const actions = sources.ContentVersionsView.template.content.match(/<div class="history-actions">[\s\S]*?<\/div>/u)?.[0]
+  const actions = sources.ContentVersionsView.template.content.match(/<div[^>]*class="history-actions"[^>]*>[\s\S]*?<\/div>/u)?.[0]
   assert.ok(actions)
   const compiled = compileTemplate({ source: actions, filename: 'HistoryActions.vue', id: 'history-access', compilerOptions: { mode: 'function' } })
   assert.deepEqual(compiled.errors, [])

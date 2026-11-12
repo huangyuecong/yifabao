@@ -23,6 +23,8 @@ const functionNames = [
   'cleanParameters',
   'normalizedResourceIds',
   'imageRevisionKnowledgeResourceIds',
+  // Keeps the revised image at the source size; added after this harness was written.
+  'imageRevisionSize',
   'generateImageRevision',
 ]
 const declarations = functionNames.map((name) => {

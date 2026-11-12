@@ -36,6 +36,10 @@ const servicesView = readFileSync(
   new URL('../src/views/agent/content/ContentServicesView.vue', import.meta.url),
   'utf8',
 )
+const catalogPresentation = readFileSync(
+  new URL('../src/views/agent/content/catalogPresentation.ts', import.meta.url),
+  'utf8',
+)
 const contentRoot = fileURLToPath(new URL('../src/views/agent/content/', import.meta.url))
 const failures = []
 
@@ -125,6 +129,7 @@ test('内容模块其余系统时间展示也统一复用北京时间格式化',
   assert.match(libraryCatalog, /formatDate\(scope\.row\.updated_at\)/u)
   assert.match(libraryCatalog, /formatDate\(selectedResource\.updated_at\)/u)
   assert.match(servicesView, /formatDate\(service\.checked_at\)/u)
+  assert.match(catalogPresentation, /export function shortTime[^}]*formatDate\(value\)/u)
 })
 
 test('内容模块没有绕过统一解析器直接解析或按字符串比较系统时间', () => {
@@ -140,7 +145,8 @@ test('内容模块没有绕过统一解析器直接解析或按字符串比较�
 
   const rawTimestampInterpolations = (contentModuleSource.match(/\{\{[^}]+\}\}/gu) ?? [])
     .filter(interpolation => new RegExp(`\\b${systemTimestampField}\\b`, 'u').test(interpolation))
-    .filter(interpolation => !/formatDate(?:Time)?\s*\(/u.test(interpolation))
+    // shortTime (catalogPresentation.ts) is a thin wrapper that shortens formatDate output.
+    .filter(interpolation => !/(?:formatDate(?:Time)?|shortTime)\s*\(/u.test(interpolation))
   assert.deepEqual(rawTimestampInterpolations, [])
 })
 

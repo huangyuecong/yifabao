@@ -23,6 +23,10 @@ function replaceImports(text) {
   return text.replace(/from\s+(['"])([^'"]+)\1/gu, (match, quote, specifier) => {
     assert.ok(moduleUrls[specifier], `Unexpected import: ${specifier}`)
     return `from ${quote}${moduleUrls[specifier]}${quote}`
+  }).replace(/import\(\s*(['"])([^'"]+)\1\s*\)/gu, (match, quote, specifier) => {
+    // Lazily loaded pages resolve to the same stubs as static imports.
+    assert.ok(moduleUrls[specifier], `Unexpected dynamic import: ${specifier}`)
+    return `import(${quote}${moduleUrls[specifier]}${quote})`
   })
 }
 const accessSource = readFileSync(new URL('../src/views/agent/content/localAccess.ts', import.meta.url), 'utf8')
@@ -268,7 +272,7 @@ test('switching administrators discards the old editor and loads the new account
 moduleUrls['@/api/agent/content'] = dataModule('export const contentApi = new Proxy({}, { get: (_, method) => (...args) => globalThis.__accessTest.call(method, ...args) });')
 const emptyComponent = dataModule('export default { render() { return null } }')
 const vueUrl = import.meta.resolve('vue')
-moduleUrls['@element-plus/icons-vue'] = dataModule('const icon = { render() { return null } }; export const ChatDotRound = icon, Collection = icon, DataAnalysis = icon, Document = icon, Edit = icon, Film = icon, FolderOpened = icon, FullScreen = icon, Goods = icon, House = icon, List = icon, Monitor = icon, Picture = icon, Promotion = icon, Sell = icon, Stamp = icon, Tickets = icon, User = icon;')
+moduleUrls['@element-plus/icons-vue'] = dataModule('const icon = { render() { return null } }; export const ChatDotRound = icon, Collection = icon, DataAnalysis = icon, Document = icon, Edit = icon, Film = icon, FolderOpened = icon, FullScreen = icon, Goods = icon, House = icon, List = icon, Monitor = icon, Picture = icon, Promotion = icon, Sell = icon, Stamp = icon, Tickets = icon, UploadFilled = icon, User = icon;')
 moduleUrls['@vueuse/core'] = dataModule('export const useFullscreen = () => ({ toggle() {} });')
 moduleUrls['@/auth/workspaceMode'] = dataModule('export const isStandaloneMode = false;')
 moduleUrls['@/api/agent/catalog'] = dataModule('export const catalogApi = { overview: async () => ({ items: {} }) };')
@@ -277,6 +281,7 @@ moduleUrls['@/router/videoEditorRouteSession'] = dataModule('export const conten
 moduleUrls['./content/contentWorkflow'] = dataModule('export const normalizeStageKey = value => value;')
 moduleUrls['./content/serviceStatusPresentation'] = dataModule('export const serviceStatusPresentation = () => ({ label: "可用", type: "success" });')
 moduleUrls['./content/localAccess'] = moduleUrls['./localAccess']
+moduleUrls['./content/reviewBadge'] = dataModule(`import { ref } from "${import.meta.resolve('vue')}"; export const pendingReviewCount = ref(0);`)
 for (const component of ['ContentHomeView', 'ContentAccessView', 'ContentAuditView', 'ContentLibraryView', 'ContentServicesView', 'ContentTaskView', 'ContentVersionsView', 'ContentAutomationView', 'ContentChatView', 'CatalogContentsView', 'CatalogProductsView', 'CatalogPublishView', 'CatalogRecordsView', 'CatalogReviewView']) {
   moduleUrls[`./content/${component}.vue`] = emptyComponent
 }
@@ -306,7 +311,8 @@ test('navigation exposes personnel only to project admins and audit separately t
 
 moduleUrls['./ContentLibraryCatalog.vue'] = dataModule(`import { h } from "${vueUrl}"; export default { props: ['resources', 'canEdit'], setup: props => () => h('catalog', {}, props.resources.filter(row => props.canEdit?.(row)).map(row => h('editable-resource', {}, row.id))) };`)
 moduleUrls['./ContentLibraryFilePreview.vue'] = emptyComponent
-moduleUrls['./contentWorkflow'] = dataModule('export const friendlyContentError = value => String(value);')
+moduleUrls['./contentWorkflow'] = dataModule('export const friendlyContentError = value => String(value); export const formatDate = value => String(value || "");')
+moduleUrls['./contentResourceCatalog'] = dataModule('export const categoryLabel = value => String(value || ""); export const isProductResource = () => false;')
 moduleUrls['./libraryUpload'] = dataModule('export const inspectLibraryFile = () => ({}); export const libraryFileAccept = () => "";')
 const Library = await compileView('../src/views/agent/content/ContentLibraryView.vue')
 
