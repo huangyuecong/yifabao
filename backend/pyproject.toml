@@ -1,0 +1,225 @@
+[project]
+name = "yifabao-content-backend"
+version = "0.1.0"
+description = "AI 个性化内容智能体后端工作区：检查工具与本地包编排"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "yifabao-agent-core",
+    "yifabao-content-service",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "pre-commit",
+    "pip-audit",
+    "uv",
+]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.uv.workspace]
+members = [
+    "packages/agent_core",
+    "packages/platform_auth",
+    "services/content_service",
+]
+
+[tool.uv.sources]
+platform-auth = { workspace = true }
+yifabao-agent-core = { workspace = true }
+yifabao-content-service = { workspace = true }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = [
+    "packages/agent_core/src",
+    "services/content_service/src",
+    "services/media_relay",
+]
+force-exclude = true
+unsafe-fixes = false
+preview = false
+extend-exclude = [
+    "build",
+    "dist",
+    "htmlcov",
+    ".venv",
+    "work",
+]
+
+[tool.ruff.lint]
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "C4",
+    "PIE",
+    "PGH004",
+    "RUF100",
+]
+ignore = []
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Body",
+    "fastapi.Path",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Security",
+    "fastapi.BackgroundTasks",
+    "fastapi.params.Depends",
+    "fastapi.params.Query",
+    "fastapi.params.Body",
+    "fastapi.params.Path",
+    "fastapi.params.File",
+    "fastapi.params.Form",
+    "fastapi.params.Header",
+    "fastapi.params.Cookie",
+    "fastapi.params.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]
+"scripts/**/*.py" = ["E402", "B007", "SIM102"]
+"services/content_service/src/content_service/hiagent_quickstart.py" = [
+    "UP031",
+    "B904",
+    "SIM115",
+]
+"services/media_relay/service.py" = ["E402"]
+"services/media_relay/test_service.py" = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "agent_core",
+    "content_service",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.12"
+files = [
+    "packages/agent_core/src",
+    "services/content_service/src",
+]
+mypy_path = [
+    "packages/agent_core/src",
+    "services/content_service/src",
+]
+explicit_package_bases = true
+strict = true
+ignore_missing_imports = false
+show_error_codes = true
+pretty = false
+enable_error_code = [
+    "ignore-without-code",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "content_service.*",
+    "service",
+]
+# 存量服务先不靠补假类型过关；共享 agent_core 仍走 strict。
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+check_untyped_defs = false
+warn_return_any = false
+disable_error_code = [
+    "arg-type",
+    "assignment",
+    "attr-defined",
+    "call-arg",
+    "call-overload",
+    "comparison-overlap",
+    "dict-item",
+    "has-type",
+    "index",
+    "list-item",
+    "misc",
+    "name-defined",
+    "no-any-return",
+    "no-redef",
+    "operator",
+    "override",
+    "return-value",
+    "type-var",
+    "typeddict-item",
+    "union-attr",
+    "unused-ignore",
+    "var-annotated",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "docx.*",
+    "imageio_ffmpeg.*",
+    "pypdf.*",
+    "PIL.*",
+    "tos.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+    "--import-mode=importlib",
+    "--basetemp=.pytest-tmp",
+]
+xfail_strict = true
+markers = [
+    "unit: 单元测试",
+    "integration: 集成测试",
+    "e2e: 端到端测试",
+    "slow: 耗时测试",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "agent_core",
+    "content_service",
+]
+relative_files = true
+omit = [
+    "*/tests/*",
+    "*/.venv/*",
+    "*/hiagent_quickstart.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
+fail_under = 80
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.html]
+directory = "htmlcov"

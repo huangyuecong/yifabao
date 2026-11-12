@@ -1,0 +1,84 @@
+@import './var.css';
+@import './FormCreate/index.scss';
+@import 'element-plus/theme-chalk/dark/css-vars.css';
+@import './element-plus.scss';
+
+.reset-margin [class*='el-icon'] + span {
+  margin-left: 2px !important;
+}
+
+// 解决抽屉弹出时，body宽度变化的问题
+.el-popup-parent--hidden {
+  width: 100% !important;
+}
+
+// 解决表格内容超过表格总宽度后，横向滚动条前端顶不到表格边缘的问题
+.el-scrollbar__bar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* nprogress 适配 element-plus 的主题色 */
+#nprogress {
+  & .bar {
+    background-color: var(--el-color-primary) !important;
+  }
+
+  & .peg {
+    box-shadow:
+      0 0 10px var(--el-color-primary),
+      0 0 5px var(--el-color-primary) !important;
+  }
+
+  & .spinner-icon {
+    border-top-color: var(--el-color-primary);
+    border-left-color: var(--el-color-primary);
+  }
+}
+
+.search-form {
+  padding: 0 !important;
+  border: none !important;
+  border-radius: calc(var(--xi-primitive-radius-xs) * 1px);
+
+  .el-button {
+    min-width: 88px;
+    font-weight: normal;
+  }
+
+
+  .el-form-item__label {
+    color: var(--xi-semantic-color-text-primary);
+  }
+
+}
+
+.result-list {
+  border: none !important;
+  border-radius: calc(var(--xi-primitive-radius-xs) * 1px);
+
+  .el-table {
+    th.el-table__cell {
+      background-color: var(--xi-semantic-color-background-page);
+      border-bottom: none;
+      color: var(--xi-semantic-color-text-primary);
+      font-weight: 400;
+    }
+    .el-table__cell {
+      border-color: var(--xi-semantic-color-border-subtle);
+    }
+  }
+
+}
+
+.el-table--fit .el-table__inner-wrapper::before {
+  display: none;
+}
+
+/* Pagination colors and disabled/current states are owned by Element Plus,
+ * mapped to semantic tokens in brand-theme.scss. */
+.el-pagination {
+  font-weight: 400;
+  button, .el-pager li { border-radius: var(--el-border-radius-base); font-weight: 400; }
+  .el-select__selected-item, .el-input__inner { text-align: center; }
+}

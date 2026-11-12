@@ -1,0 +1,9 @@
+# The delivery images only need the two isolated model services. Keeping this
+# context allow-listed prevents local virtual environments, test artefacts,
+# recordings, and unrelated product source from being uploaded to Docker.
+**
+!services/
+!services/speaker_service/
+!services/speaker_service/**
+!services/diarization_service/
+!services/diarization_service/**

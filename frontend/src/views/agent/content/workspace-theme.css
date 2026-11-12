@@ -1,0 +1,80 @@
+/* Workbench palette: neutral grays, one muted blue for actions, color only for status.
+ * Overrides the primitive layer so every page that consumes semantic tokens follows. */
+:root,
+.content-agent-shell,
+body:has(.content-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification) {
+  --xi-primitive-color-brand-primary-1: #f1f5fb !important;
+  --xi-primitive-color-brand-primary-2: #e3ebf7 !important;
+  --xi-primitive-color-brand-primary-3: #c9d7ee !important;
+  --xi-primitive-color-brand-primary-4: #a3bbe0 !important;
+  --xi-primitive-color-brand-primary-5: #7395cc !important;
+  --xi-primitive-color-brand-primary-6: #3d68b5 !important;
+  --xi-primitive-color-brand-primary-7: #2a559f !important;
+  --xi-primitive-color-brand-primary-8: #214684 !important;
+  --xi-primitive-color-brand-primary-9: #1a3866 !important;
+  --xi-primitive-color-brand-primary-10: #13294b !important;
+  --xi-primitive-color-brand-accent-1: #f1f5fb !important;
+  --xi-primitive-color-brand-accent-2: #e3ebf7 !important;
+  --xi-primitive-color-brand-accent-3: #c9d7ee !important;
+  --xi-primitive-color-brand-accent-4: #a3bbe0 !important;
+  --xi-primitive-color-brand-accent-5: #7395cc !important;
+  --xi-primitive-color-brand-accent-6: #3d68b5 !important;
+  --xi-primitive-color-brand-accent-7: #2a559f !important;
+  --xi-primitive-color-brand-accent-8: #214684 !important;
+  --xi-primitive-color-brand-accent-9: #1a3866 !important;
+  --xi-primitive-color-brand-accent-10: #13294b !important;
+  --xi-primitive-radius-sm: 4 !important;
+  --xi-primitive-radius-md: 6 !important;
+  --xi-primitive-radius-lg: 8 !important;
+  --xi-semantic-color-background-page: #f4f5f7 !important;
+  --xi-component-page-background: #f4f5f7 !important;
+  --xi-semantic-color-background-container: #fff !important;
+  --xi-semantic-color-text-primary: #1d2024 !important;
+  --xi-semantic-color-text-secondary: #474c54 !important;
+  --xi-semantic-color-text-tertiary: #7a7f87 !important;
+  --xi-semantic-color-text-placeholder: #9a9fa6 !important;
+  --xi-semantic-color-border-default: #dcdfe3 !important;
+  --xi-semantic-color-border-subtle: #e7e9ec !important;
+  --xi-semantic-color-divider-default: #eceef1 !important;
+  --xi-semantic-color-feedback-success-default: #2f7d4f !important;
+  --xi-semantic-color-feedback-success-text: #276a43 !important;
+  --xi-semantic-color-feedback-success-background-subtle: #eef6f1 !important;
+  --xi-semantic-color-feedback-warning-default: #a8660f !important;
+  --xi-semantic-color-feedback-warning-text: #8a540c !important;
+  --xi-semantic-color-feedback-warning-background-subtle: #fbf5ea !important;
+  --xi-semantic-color-feedback-danger-default: #c0392f !important;
+  --xi-semantic-color-feedback-danger-text: #a8322a !important;
+  --xi-semantic-color-feedback-danger-background-subtle: #fbefee !important;
+  --xi-semantic-color-feedback-info-default: #5b616a !important;
+  --xi-semantic-color-feedback-info-text: #474c54 !important;
+  --xi-semantic-color-feedback-info-background-subtle: #f1f2f4 !important;
+  /* The remaining feedback states feed Element tags and plain buttons; without them
+   * Info tags ("未开始", "已归档") render blue and status borders render saturated. */
+  --xi-semantic-color-feedback-info-border: #dcdfe3 !important;
+  --xi-semantic-color-feedback-info-active: #474c54 !important;
+  --xi-semantic-color-feedback-info-background-light: #e9ebee !important;
+  --xi-semantic-color-feedback-info-background-hover: #7a7f87 !important;
+  --xi-semantic-color-feedback-success-border: #cfe4d7 !important;
+  --xi-semantic-color-feedback-success-active: #276a43 !important;
+  --xi-semantic-color-feedback-success-background-light: #dcefe3 !important;
+  --xi-semantic-color-feedback-success-background-hover: #4b9068 !important;
+  --xi-semantic-color-feedback-warning-border: #efdcbc !important;
+  --xi-semantic-color-feedback-warning-active: #8a540c !important;
+  --xi-semantic-color-feedback-warning-background-light: #f6ead4 !important;
+  --xi-semantic-color-feedback-warning-background-hover: #bd8131 !important;
+  --xi-semantic-color-feedback-danger-border: #f0cdca !important;
+  --xi-semantic-color-feedback-danger-active: #a8322a !important;
+  --xi-semantic-color-feedback-danger-background-light: #f7dddb !important;
+  --xi-semantic-color-feedback-danger-background-hover: #cf5d54 !important;
+  /* Page titles everywhere match the workbench pages (20px, see catalog.css .wb-page-head). */
+  --xi-semantic-typography-heading1-font-size: 20px !important;
+  --xi-semantic-typography-heading1-line-height: 28 !important;
+  /* Section titles inside a page stay clearly below the page title. */
+  --xi-semantic-typography-heading2-font-size: 16px !important;
+  --xi-semantic-typography-heading2-line-height: 24 !important;
+  --workbench-shadow: none;
+  --wb-sidebar-width: 216px;
+  --wb-hover: #f0f2f5;
+  --wb-selected: #e8eef8;
+}

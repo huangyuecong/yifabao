@@ -1,0 +1,7 @@
+{
+  "name": "launcher-missing-dependency-test",
+  "private": true,
+  "dependencies": {
+    "missing-launcher-test-package": "0.0.0"
+  }
+}

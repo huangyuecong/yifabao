@@ -1,0 +1,27 @@
+/* Keep application-specific hooks here. Component states belong to brand-theme.scss.
+ * Do not override typed buttons with !important: it breaks Text/Outline/Disabled. */
+:root {
+  --custom-action-button-view-color: var(--el-color-success);
+  --custom-action-button-view-hover-color: var(--el-color-success-hover);
+  --custom-action-button-edit-color: var(--el-color-primary);
+  --custom-action-button-edit-hover-color: var(--el-color-primary-hover);
+  --custom-action-button-delete-color: var(--el-color-danger);
+  --custom-action-button-delete-hover-color: var(--el-color-danger-hover);
+  --custom-action-button-copy-color: var(--el-color-warning);
+  --custom-action-button-copy-hover-color: var(--el-color-warning-hover);
+  --custom-action-button-vertical-divider-height: 8px;
+  --custom-action-button-vertical-divider-border: 1px solid var(--xi-semantic-color-divider-default);
+}
+@each $action in view, edit, delete, copy {
+  .custom-action-button-#{$action} {
+    color: var(--custom-action-button-#{$action}-color);
+    &:hover { color: var(--custom-action-button-#{$action}-hover-color); }
+  }
+}
+.custom-action-button-vertical-divider-style {
+  height: var(--custom-action-button-vertical-divider-height);
+  border-left: var(--custom-action-button-vertical-divider-border);
+}
+.el-menu.el-menu--vertical { padding-block: 16px; }
+.el-drawer__header { padding: 16px; margin-bottom: 0; }
+.hover\:bg-slate-100:hover { background-color: var(--el-color-primary-plain); }

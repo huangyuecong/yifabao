@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "jsx": "preserve",
+    "lib": ["esnext", "dom"],
+    "useDefineForClassFields": true,
+    "experimentalDecorators": true,
+    "baseUrl": "./",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "resolveJsonModule": true, // 请保留这个属性，防止tsconfig.json文件报错
+    "typeRoots": ["./node_modules/@types/", "./types"],
+    "types": [
+      // "@intlify/unplugin-vue-i18n/types",
+      "vite/client"
+      // "element-plus/global",
+      // "@types/qrcode",
+      // "vite-plugin-svg-icons/client"
+    ],
+    "allowJs": true,
+    "strict": true,
+    "strictFunctionTypes": false,
+    "noImplicitAny": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "outDir": "target",
+    "sourceMap": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src",
+    "types/**/*.d.ts",
+    "src/types/auto-imports.d.ts",
+    "src/types/auto-components.d.ts"
+  ],
+  "exclude": ["dist", "target", "node_modules"]
+}

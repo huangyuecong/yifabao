@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/api/agent/**/*.ts",
+    "src/views/agent/**/*.vue",
+    "types/env.d.ts",
+    "node_modules/element-plus/global.d.ts"
+  ],
+  "exclude": [
+    "src/types/auto-imports.d.ts",
+    "src/types/auto-components.d.ts",
+    "src/components/**",
+    "src/api/system/**",
+    "src/layout/**"
+  ]
+}

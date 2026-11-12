@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- <meta name="" content="Content-Security-Policy: worker-src 'none';" /> -->
+    <!-- <meta http-equiv="Content-Security-Policy" content="worker-src 'self' http:;" /> -->
+    <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="/favicon.ico?v=3" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/automation-workbench-icon.svg?v=5" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="keywords" content="易发宝工作台：资料管理、内容创作、商品上架与视频发布" />
+    <meta name="description" content="易发宝工作台：资料管理、内容创作、商品上架与视频发布" />
+    <title>%VITE_APP_TITLE%</title>
+  </head>
+  <body>
+    <div id="app">
+      <style>
+        .app-loading {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-direction: column;
+          background: #f8fafc;
+          font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+
+        .app-loading .app-loading-wrap {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-direction: column;
+          animation: app-loading-fade 0.5s ease both;
+        }
+
+        .app-loading .app-loading-logo {
+          font-family: inherit;
+          font-size: 34px;
+          font-weight: 600;
+          letter-spacing: 3px;
+          color: #334155;
+        }
+
+        .app-loading .app-loading-title {
+          margin-top: 12px;
+          font-size: 14px;
+          letter-spacing: 1px;
+          color: #64748b;
+        }
+
+        .app-loading .app-loading-bar {
+          position: relative;
+          width: 140px;
+          height: 2px;
+          margin-top: 26px;
+          overflow: hidden;
+          background: rgba(51, 65, 85, 0.12);
+          border-radius: 2px;
+        }
+
+        .app-loading .app-loading-bar span {
+          position: absolute;
+          top: 0;
+          left: -40%;
+          width: 40%;
+          height: 100%;
+          background: #334155;
+          border-radius: 2px;
+          animation: app-loading-slide 1.2s ease-in-out infinite;
+        }
+
+        @keyframes app-loading-fade {
+          0% {
+            opacity: 0;
+          }
+
+          100% {
+            opacity: 1;
+          }
+        }
+
+        @keyframes app-loading-slide {
+          0% {
+            left: -40%;
+          }
+
+          100% {
+            left: 100%;
+          }
+        }
+      </style>
+      <div class="app-loading">
+        <div class="app-loading-wrap">
+          <div class="app-loading-logo">AI</div>
+          <div class="app-loading-title">%VITE_APP_TITLE%</div>
+          <div class="app-loading-bar"><span></span></div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

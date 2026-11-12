@@ -1,0 +1,186 @@
+import type { RouteRecordRaw } from 'vue-router'
+
+const contentAgentRoutes: RouteRecordRaw[] = [
+  { path: 'content/production', name: 'ContentAgentProduction', redirect: '/agent/content/review' },
+  { path: 'content/automation', name: 'ContentAgentAutomation', redirect: '/agent/content/listing' },
+  {
+    path: 'content/products',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentProducts',
+    meta: { title: '商品库', hidden: true, canTo: true, noCache: false, contentView: 'products' },
+  },
+  {
+    path: 'content/review',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentReview',
+    meta: { title: '生成与审核', hidden: true, canTo: true, noCache: false, contentView: 'review' },
+  },
+  {
+    path: 'content/contents',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentContents',
+    meta: { title: '内容库', hidden: true, canTo: true, noCache: false, contentView: 'contents' },
+  },
+  {
+    path: 'content/listing',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentListing',
+    meta: { title: '商品上架', hidden: true, canTo: true, noCache: false, contentView: 'publish', automationPurpose: 'listing' },
+  },
+  {
+    path: 'content/promotion',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentPromotion',
+    meta: { title: '内容宣传', hidden: true, canTo: true, noCache: false, contentView: 'publish', automationPurpose: 'promotion' },
+  },
+  {
+    path: 'content/records',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentRecords',
+    meta: { title: '发布记录', hidden: true, canTo: true, noCache: false, contentView: 'records' },
+  },
+  {
+    // Rule-based workflows, including Xianyu relist/delist of existing items.
+    path: 'content/listing/rules',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentListingRules',
+    meta: { title: '上下架规则', hidden: true, canTo: true, noCache: false, contentView: 'automation', automationPurpose: 'listing' },
+  },
+  {
+    path: 'content/promotion/rules',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentPromotionRules',
+    meta: { title: '宣传规则', hidden: true, canTo: true, noCache: false, contentView: 'automation', automationPurpose: 'promotion' },
+  },
+  {
+    path: 'content/chat',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentChat',
+    meta: { title: 'AI 对话', hidden: true, canTo: true, noCache: false, contentView: 'chat' },
+  },
+  {
+    path: 'content/access',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentAccess',
+    meta: { title: '人员与权限', hidden: true, canTo: true, noCache: false, contentView: 'access' },
+  },
+  {
+    path: 'content/audit',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentAudit',
+    meta: { title: '操作记录', hidden: true, canTo: true, noCache: false, contentView: 'audit' },
+  },
+  {
+    path: 'content',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentWorkbench',
+    meta: {
+      title: '易发宝工作台',
+      icon: 'ep:edit-pen',
+      noCache: false,
+      contentView: 'home',
+    },
+  },
+  {
+    path: 'content/create/full',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentCreateFull',
+    meta: {
+      title: '完整流程',
+      hidden: true,
+      canTo: true,
+      noCache: true,
+      contentView: 'task',
+      contentMode: 'full',
+    },
+  },
+  {
+    path: 'content/create/copy',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentCreateCopy',
+    meta: {
+      title: '文案生成',
+      hidden: true,
+      canTo: true,
+      noCache: true,
+      contentView: 'task',
+      contentMode: 'copy',
+    },
+  },
+  {
+    path: 'content/create/image',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentCreateImage',
+    meta: {
+      title: '图片生成',
+      hidden: true,
+      canTo: true,
+      noCache: true,
+      contentView: 'task',
+      contentMode: 'image',
+    },
+  },
+  {
+    path: 'content/create/video',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentCreateVideo',
+    meta: {
+      title: '视频制作',
+      hidden: true,
+      canTo: true,
+      noCache: true,
+      contentView: 'task',
+      contentMode: 'video',
+    },
+  },
+  {
+    path: 'content/tasks/:taskId/stages/:stageKey',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentTaskStage',
+    meta: {
+      title: '内容任务',
+      hidden: true,
+      canTo: true,
+      noCache: true,
+      contentView: 'task',
+    },
+  },
+  {
+    path: 'content/library',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentLibrary',
+    meta: {
+      title: '资料与素材',
+      hidden: true,
+      canTo: true,
+      noCache: false,
+      contentView: 'library',
+    },
+  },
+  {
+    path: 'content/versions',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentVersions',
+    meta: {
+      title: '历史任务',
+      hidden: true,
+      canTo: true,
+      noCache: false,
+      contentView: 'versions',
+    },
+  },
+  {
+    path: 'content/services',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentServices',
+    meta: {
+      title: '模型与服务',
+      hidden: true,
+      canTo: true,
+      noCache: false,
+      contentView: 'services',
+    },
+  },
+]
+
+export default contentAgentRoutes

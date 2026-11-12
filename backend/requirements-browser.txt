@@ -1,0 +1,3 @@
+# Optional runtime for browser-based publishing. Install in the backend environment.
+# Reuses a local Chromium/Edge/Chrome instance via CDP; no browser download required.
+playwright>=1.51,<2

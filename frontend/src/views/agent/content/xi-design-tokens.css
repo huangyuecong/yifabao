@@ -1,0 +1,517 @@
+/**
+ * BRAND DESIGN TOKENS
+ *
+ * PROJECT SOURCE:
+ * - 知识库/research/base.md，逐图来源 S01–S08。
+ * - Primitive 与 Semantic 保留项目原图明确值；页面与组件应消费 Semantic / Component，不能直接硬编码色值。
+ * - 字体原图同时出现“line-height = font-size × 1.5”参考与“font-size + 8”项目公式；各层级以字阶表为准。
+ *
+ * ENGINEERING MAPPING:
+ * - Component 区是基于报告 7.1 的少量工程别名，不是新增视觉数值。
+ * - JSON 路径 a.b.c 与 CSS 名 --xi-a-b-c 一一对应。
+ *
+ * REVIEW ISOLATION — DO NOT GUESS:
+ * - Shadow：原图没有 offset / blur / spread / color / opacity；本 CSS 不生成任何 shadow 自定义属性。
+ * - Radius：原图值 2 / 4 / 8 / 12 / 9999 未标单位；下方变量只保存原始 number，确认单位前不得当作 CSS 长度。
+ * - Typography：展示字体-中原图为 58px / 56，和 font-size + 8 公式冲突；保留原值但不生成 Component 映射。
+ * - Font weight：Regular / Medium / Bold 仅是原图标签，未转换为 400 / 500 / 700。
+ * - Line-height：原图行高列未标单位，按原始 number 输出。
+ */
+
+/* === PROJECT SOURCE — PRIMITIVE === */
+:root,
+.content-agent-shell,
+.meeting-agent-shell,
+body:has(.meeting-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification),
+body:has(.content-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification) {
+  /* primitive / color */
+  --xi-primitive-color-brand-primary-1: #f2f9f8;
+  --xi-primitive-color-brand-primary-2: #e7f5f2;
+  --xi-primitive-color-brand-primary-3: #d0eae5;
+  --xi-primitive-color-brand-primary-4: #b2ddd4;
+  --xi-primitive-color-brand-primary-5: #8acabe;
+  --xi-primitive-color-brand-primary-6: #57ad9e;
+  --xi-primitive-color-brand-primary-7: #197465;
+  --xi-primitive-color-brand-primary-8: #145f52;
+  --xi-primitive-color-brand-primary-9: #0e483e;
+  --xi-primitive-color-brand-primary-10: #08312b;
+  --xi-primitive-color-brand-accent-1: #f2fcfa;
+  --xi-primitive-color-brand-accent-2: #e6f9f4;
+  --xi-primitive-color-brand-accent-3: #cef3ea;
+  --xi-primitive-color-brand-accent-4: #ade9da;
+  --xi-primitive-color-brand-accent-5: #82dcc6;
+  --xi-primitive-color-brand-accent-6: #4ccbad;
+  --xi-primitive-color-brand-accent-7: #12b58e;
+  --xi-primitive-color-brand-accent-8: #0e9677;
+  --xi-primitive-color-brand-accent-9: #0a715a;
+  --xi-primitive-color-brand-accent-10: #064a3b;
+  --xi-primitive-color-functional-success-1: #f2fbf6;
+  --xi-primitive-color-functional-success-2: #e2f7ea;
+  --xi-primitive-color-functional-success-3: #c6eed6;
+  --xi-primitive-color-functional-success-4: #9fdfba;
+  --xi-primitive-color-functional-success-5: #72ce99;
+  --xi-primitive-color-functional-success-6: #4abd7d;
+  --xi-primitive-color-functional-success-7: #2ead67;
+  --xi-primitive-color-functional-success-8: #238f54;
+  --xi-primitive-color-functional-success-9: #19723f;
+  --xi-primitive-color-functional-success-10: #10552e;
+  --xi-primitive-color-functional-warning-1: #fefaf6;
+  --xi-primitive-color-functional-warning-2: #fcf4ea;
+  --xi-primitive-color-functional-warning-3: #f5e6d4;
+  --xi-primitive-color-functional-warning-4: #eed3b8;
+  --xi-primitive-color-functional-warning-5: #e3bc95;
+  --xi-primitive-color-functional-warning-6: #d8a574;
+  --xi-primitive-color-functional-warning-7: #c98d58;
+  --xi-primitive-color-functional-warning-8: #a87346;
+  --xi-primitive-color-functional-warning-9: #795231;
+  --xi-primitive-color-functional-warning-10: #4c321d;
+  --xi-primitive-color-functional-danger-1: #fef3f2;
+  --xi-primitive-color-functional-danger-2: #fde7e5;
+  --xi-primitive-color-functional-danger-3: #fbcfcc;
+  --xi-primitive-color-functional-danger-4: #f6a9a4;
+  --xi-primitive-color-functional-danger-5: #f07d76;
+  --xi-primitive-color-functional-danger-6: #ea5f56;
+  --xi-primitive-color-functional-danger-7: #e5483f;
+  --xi-primitive-color-functional-danger-8: #c9362f;
+  --xi-primitive-color-functional-danger-9: #a92b26;
+  --xi-primitive-color-functional-danger-10: #7a1f1b;
+  --xi-primitive-color-functional-info-1: #f5f8ff;
+  --xi-primitive-color-functional-info-2: #eaf2ff;
+  --xi-primitive-color-functional-info-3: #d6e6ff;
+  --xi-primitive-color-functional-info-4: #bbd4ff;
+  --xi-primitive-color-functional-info-5: #92b9ff;
+  --xi-primitive-color-functional-info-6: #6499ff;
+  --xi-primitive-color-functional-info-7: #2e74fd;
+  --xi-primitive-color-functional-info-8: #235ed8;
+  --xi-primitive-color-functional-info-9: #1948aa;
+  --xi-primitive-color-functional-info-10: #10306f;
+  --xi-primitive-color-extension-sky-1: #f2faff;
+  --xi-primitive-color-extension-sky-2: #e5f6ff;
+  --xi-primitive-color-extension-sky-3: #cbefff;
+  --xi-primitive-color-extension-sky-4: #a8e3ff;
+  --xi-primitive-color-extension-sky-5: #7bd5ff;
+  --xi-primitive-color-extension-sky-6: #4cc6ff;
+  --xi-primitive-color-extension-sky-7: #21b5ff;
+  --xi-primitive-color-extension-sky-8: #1796d6;
+  --xi-primitive-color-extension-sky-9: #0f73a8;
+  --xi-primitive-color-extension-sky-10: #084b70;
+  --xi-primitive-color-extension-amber-1: #fffaf2;
+  --xi-primitive-color-extension-amber-2: #fff4e2;
+  --xi-primitive-color-extension-amber-3: #ffe8bf;
+  --xi-primitive-color-extension-amber-4: #ffd894;
+  --xi-primitive-color-extension-amber-5: #ffc765;
+  --xi-primitive-color-extension-amber-6: #f8b542;
+  --xi-primitive-color-extension-amber-7: #f2a32e;
+  --xi-primitive-color-extension-amber-8: #cc841d;
+  --xi-primitive-color-extension-amber-9: #986114;
+  --xi-primitive-color-extension-amber-10: #613c08;
+  --xi-primitive-color-extension-orange-1: #fff7f3;
+  --xi-primitive-color-extension-orange-2: #ffeee7;
+  --xi-primitive-color-extension-orange-3: #ffd8c9;
+  --xi-primitive-color-extension-orange-4: #ffba9f;
+  --xi-primitive-color-extension-orange-5: #ff9871;
+  --xi-primitive-color-extension-orange-6: #ff784a;
+  --xi-primitive-color-extension-orange-7: #fc6328;
+  --xi-primitive-color-extension-orange-8: #d84c18;
+  --xi-primitive-color-extension-orange-9: #a83610;
+  --xi-primitive-color-extension-orange-10: #6b2008;
+  --xi-primitive-color-extension-purple-1: #f8f6ff;
+  --xi-primitive-color-extension-purple-2: #f0ecff;
+  --xi-primitive-color-extension-purple-3: #ddd4ff;
+  --xi-primitive-color-extension-purple-4: #c6b8ff;
+  --xi-primitive-color-extension-purple-5: #ad99ff;
+  --xi-primitive-color-extension-purple-6: #9277ff;
+  --xi-primitive-color-extension-purple-7: #7b61ff;
+  --xi-primitive-color-extension-purple-8: #6048db;
+  --xi-primitive-color-extension-purple-9: #4630a8;
+  --xi-primitive-color-extension-purple-10: #2c1b70;
+  --xi-primitive-color-gray-1: #ffffff;
+  --xi-primitive-color-gray-2: #f7f7f7;
+  --xi-primitive-color-gray-3: #f2f2f2;
+  --xi-primitive-color-gray-4: #e5e5e5;
+  --xi-primitive-color-gray-5: #d9d9d9;
+  --xi-primitive-color-gray-6: #c7c7c7;
+  --xi-primitive-color-gray-7: #999999;
+  --xi-primitive-color-gray-8: #666666;
+  --xi-primitive-color-gray-9: #222222;
+  --xi-primitive-color-gray-10: #000000;
+  --xi-primitive-color-brand-gray-1: #f6f8f7;
+  --xi-primitive-color-brand-gray-2: #f1f4f3;
+  --xi-primitive-color-brand-gray-3: #ebefee;
+  --xi-primitive-color-brand-gray-4: #e3e9e7;
+  --xi-primitive-color-brand-gray-5: #d7dfdd;
+  --xi-primitive-color-brand-gray-6: #c5d0cd;
+  --xi-primitive-color-brand-gray-7: #abbab6;
+  --xi-primitive-color-brand-gray-8: #91a29d;
+  --xi-primitive-color-brand-gray-9: #61746e;
+  --xi-primitive-color-brand-gray-10: #1d2a26;
+  /* 页面浅灰背景。 */
+  --xi-primitive-color-background-page: #f5f7fa;
+  --xi-primitive-color-dark-highlight-1: #60faa5;
+  --xi-primitive-color-dark-highlight-2: #71fe6a;
+  --xi-primitive-color-dark-highlight-3: #00ffd4;
+
+  /* primitive / font */
+  /* 原图卡片写“苹方-简”。 */
+  --xi-primitive-font-family-ios-zh: 'PingFang SC';
+  --xi-primitive-font-family-ios-latin: 'SF Pro';
+  --xi-primitive-font-family-android-zh: '思源黑体';
+  --xi-primitive-font-family-android-latin: 'Roboto';
+  --xi-primitive-font-size-10: 10px;
+  --xi-primitive-font-size-12: 12px;
+  --xi-primitive-font-size-14: 14px;
+  --xi-primitive-font-size-16: 16px;
+  --xi-primitive-font-size-18: 18px;
+  --xi-primitive-font-size-24: 24px;
+  --xi-primitive-font-size-28: 28px;
+  --xi-primitive-font-size-36: 36px;
+  --xi-primitive-font-size-58: 58px;
+  --xi-primitive-font-size-64: 64px;
+  --xi-primitive-font-weight-label-regular: 'Regular';
+  --xi-primitive-font-weight-label-medium: 'Medium';
+  --xi-primitive-font-weight-label-bold: 'Bold';
+
+  /* primitive / line */
+  --xi-primitive-line-height-18: 18;
+  --xi-primitive-line-height-20: 20;
+  --xi-primitive-line-height-22: 22;
+  --xi-primitive-line-height-24: 24;
+  --xi-primitive-line-height-26: 26;
+  --xi-primitive-line-height-32: 32;
+  --xi-primitive-line-height-36: 36;
+  --xi-primitive-line-height-44: 44;
+  --xi-primitive-line-height-56: 56;
+  --xi-primitive-line-height-72: 72;
+
+  /* primitive / radius */
+  /* REVIEW: 确认 CSS 单位前不得直接作为长度使用。 */
+  --xi-primitive-radius-xs: 2;
+  /* REVIEW: 确认 CSS 单位前不得直接作为长度使用。 */
+  --xi-primitive-radius-sm: 4;
+  /* REVIEW: 确认 CSS 单位前不得直接作为长度使用。 */
+  --xi-primitive-radius-md: 8;
+  /* REVIEW: 确认 CSS 单位前不得直接作为长度使用。 */
+  --xi-primitive-radius-lg: 12;
+  /* REVIEW: 确认 CSS 单位前不得直接作为长度使用。 */
+  --xi-primitive-radius-full: 9999;
+
+  /* primitive / space */
+  --xi-primitive-space-4: 4px;
+  --xi-primitive-space-8: 8px;
+  --xi-primitive-space-12: 12px;
+  --xi-primitive-space-16: 16px;
+  --xi-primitive-space-20: 20px;
+  --xi-primitive-space-24: 24px;
+  --xi-primitive-space-28: 28px;
+  --xi-primitive-space-32: 32px;
+  --xi-primitive-space-36: 36px;
+  --xi-primitive-space-40: 40px;
+  --xi-primitive-space-48: 48px;
+  --xi-primitive-space-64: 64px;
+  --xi-primitive-space-96: 96px;
+  --xi-primitive-space-160: 160px;
+
+  /* primitive / layout */
+  --xi-primitive-layout-web-canvas-width: 1920px;
+  /* Web 取值原则：建议按 8 的倍数。 */
+  --xi-primitive-layout-web-spacing-base-multiple: 8;
+  --xi-primitive-layout-web-grid-column-count: 24;
+  --xi-primitive-layout-web-grid-gutter-compact: 16px;
+  --xi-primitive-layout-web-grid-gutter-comfortable: 24px;
+  --xi-primitive-layout-web-page-margin-large-screen: 24px;
+  --xi-primitive-layout-web-page-margin-small-screen: 16px;
+  --xi-primitive-layout-web-safe-margin-default: 24px;
+  --xi-primitive-layout-web-sidebar-expanded-width: 200px;
+  --xi-primitive-layout-mobile-canvas-width: 375px;
+  --xi-primitive-layout-mobile-canvas-height: 812px;
+  --xi-primitive-layout-mobile-scale-base: 1;
+  --xi-primitive-layout-mobile-scale-double: 2;
+  --xi-primitive-layout-mobile-scale-triple: 3;
+  /* 移动页面边距按 4 的倍数调整。 */
+  --xi-primitive-layout-mobile-spacing-base-multiple: 4;
+  --xi-primitive-layout-mobile-page-margin-sample-compact: 12px;
+  --xi-primitive-layout-mobile-page-margin-sample-default: 16px;
+  --xi-primitive-layout-mobile-safe-area-bottom-min: 34px;
+
+  /* primitive / icon */
+  --xi-primitive-icon-canvas: 48px;
+  --xi-primitive-icon-safe-area: 40px;
+  --xi-primitive-icon-inset: 4px;
+  --xi-primitive-icon-stroke-regular: 3px;
+  --xi-primitive-icon-stroke-medium: 4px;
+  --xi-primitive-icon-size-8: 8px;
+  --xi-primitive-icon-size-12: 12px;
+  /* 默认应用尺寸。 */
+  --xi-primitive-icon-size-16: 16px;
+  --xi-primitive-icon-size-20: 20px;
+  /* REVIEW: 与按 4px 递增的原图文字冲突。 */
+  --xi-primitive-icon-size-22: 22px;
+  /* 1x 标准。 */
+  --xi-primitive-icon-size-24: 24px;
+  --xi-primitive-icon-size-28: 28px;
+  --xi-primitive-icon-size-32: 32px;
+  --xi-primitive-icon-size-36: 36px;
+  --xi-primitive-icon-size-40: 40px;
+  --xi-primitive-icon-size-44: 44px;
+  /* 2x 设计基准。 */
+  --xi-primitive-icon-size-48: 48px;
+  --xi-primitive-icon-style-outline: 'Outline';
+  --xi-primitive-icon-style-filled: 'Filled';
+}
+
+/* === PROJECT SOURCE — SEMANTIC ALIASES === */
+:root,
+.content-agent-shell,
+.meeting-agent-shell,
+body:has(.meeting-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification),
+body:has(.content-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification) {
+  /* semantic / theme */
+  --xi-semantic-theme-default-primary-1: var(--xi-primitive-color-brand-primary-1);
+  --xi-semantic-theme-default-primary-3: var(--xi-primitive-color-brand-primary-3);
+  --xi-semantic-theme-default-primary-6: var(--xi-primitive-color-brand-primary-6);
+  --xi-semantic-theme-default-primary-7: var(--xi-primitive-color-brand-primary-7);
+  --xi-semantic-theme-default-primary-8: var(--xi-primitive-color-brand-primary-8);
+  --xi-semantic-theme-vitality-primary-7: var(--xi-primitive-color-brand-accent-7);
+
+  /* semantic / color */
+  /* 标题、正文重点和主要信息。 */
+  --xi-semantic-color-text-primary: var(--xi-primitive-color-gray-9);
+  /* 正文、说明和次级信息。 */
+  --xi-semantic-color-text-secondary: var(--xi-primitive-color-gray-8);
+  /* 注释、辅助说明和弱提示。 */
+  --xi-semantic-color-text-tertiary: var(--xi-primitive-color-gray-7);
+  --xi-semantic-color-text-placeholder: var(--xi-primitive-color-gray-6);
+  --xi-semantic-color-text-disabled: var(--xi-primitive-color-gray-6);
+  --xi-semantic-color-text-brand: var(--xi-semantic-theme-default-primary-7);
+  --xi-semantic-color-text-inverse: var(--xi-primitive-color-gray-1);
+  --xi-semantic-color-feedback-success-default: var(--xi-primitive-color-functional-success-7);
+  --xi-semantic-color-feedback-success-text: var(--xi-primitive-color-functional-success-8);
+  --xi-semantic-color-feedback-success-background-subtle: var(--xi-primitive-color-functional-success-1);
+  --xi-semantic-color-feedback-success-background-light: var(--xi-primitive-color-functional-success-2);
+  --xi-semantic-color-feedback-success-background-hover: var(--xi-primitive-color-functional-success-6);
+  --xi-semantic-color-feedback-success-border: var(--xi-primitive-color-functional-success-3);
+  --xi-semantic-color-feedback-success-active: var(--xi-primitive-color-functional-success-8);
+  --xi-semantic-color-feedback-warning-default: var(--xi-primitive-color-functional-warning-7);
+  --xi-semantic-color-feedback-warning-text: var(--xi-primitive-color-functional-warning-8);
+  --xi-semantic-color-feedback-warning-background-subtle: var(--xi-primitive-color-functional-warning-1);
+  --xi-semantic-color-feedback-warning-background-light: var(--xi-primitive-color-functional-warning-2);
+  --xi-semantic-color-feedback-warning-background-hover: var(--xi-primitive-color-functional-warning-6);
+  --xi-semantic-color-feedback-warning-border: var(--xi-primitive-color-functional-warning-3);
+  --xi-semantic-color-feedback-warning-active: var(--xi-primitive-color-functional-warning-8);
+  --xi-semantic-color-feedback-danger-default: var(--xi-primitive-color-functional-danger-7);
+  --xi-semantic-color-feedback-danger-text: var(--xi-primitive-color-functional-danger-8);
+  --xi-semantic-color-feedback-danger-background-subtle: var(--xi-primitive-color-functional-danger-1);
+  --xi-semantic-color-feedback-danger-background-light: var(--xi-primitive-color-functional-danger-2);
+  --xi-semantic-color-feedback-danger-background-hover: var(--xi-primitive-color-functional-danger-6);
+  --xi-semantic-color-feedback-danger-border: var(--xi-primitive-color-functional-danger-3);
+  --xi-semantic-color-feedback-danger-active: var(--xi-primitive-color-functional-danger-8);
+  --xi-semantic-color-feedback-info-default: var(--xi-primitive-color-functional-info-7);
+  --xi-semantic-color-feedback-info-text: var(--xi-primitive-color-functional-info-8);
+  --xi-semantic-color-feedback-info-background-subtle: var(--xi-primitive-color-functional-info-1);
+  --xi-semantic-color-feedback-info-background-light: var(--xi-primitive-color-functional-info-2);
+  --xi-semantic-color-feedback-info-background-hover: var(--xi-primitive-color-functional-info-6);
+  --xi-semantic-color-feedback-info-border: var(--xi-primitive-color-functional-info-3);
+  --xi-semantic-color-feedback-info-active: var(--xi-primitive-color-functional-info-8);
+  --xi-semantic-color-feedback-invalid-default: var(--xi-primitive-color-gray-7);
+  --xi-semantic-color-feedback-invalid-text: var(--xi-primitive-color-gray-9);
+  --xi-semantic-color-feedback-invalid-background-subtle: var(--xi-primitive-color-gray-3);
+  --xi-semantic-color-feedback-invalid-background-hover: var(--xi-primitive-color-gray-6);
+  --xi-semantic-color-feedback-invalid-border: var(--xi-primitive-color-gray-5);
+  --xi-semantic-color-feedback-invalid-active: var(--xi-primitive-color-gray-8);
+  --xi-semantic-color-border-default: var(--xi-primitive-color-gray-5);
+  --xi-semantic-color-border-subtle: var(--xi-primitive-color-gray-4);
+  --xi-semantic-color-border-strong: var(--xi-primitive-color-gray-6);
+  --xi-semantic-color-border-brand-subtle: var(--xi-semantic-theme-default-primary-3);
+  --xi-semantic-color-border-brand-default: var(--xi-semantic-theme-default-primary-7);
+  --xi-semantic-color-border-brand-strong: var(--xi-primitive-color-brand-primary-4);
+  --xi-semantic-color-divider-default: var(--xi-primitive-color-gray-4);
+  --xi-semantic-color-background-page: var(--xi-primitive-color-background-page);
+  --xi-semantic-color-background-container: var(--xi-primitive-color-gray-1);
+  --xi-semantic-color-background-brand-subtle: var(--xi-semantic-theme-default-primary-1);
+  --xi-semantic-color-background-brand-light: var(--xi-primitive-color-brand-primary-2);
+  --xi-semantic-color-background-brand-section: var(--xi-semantic-theme-default-primary-7);
+  --xi-semantic-color-background-inverse: var(--xi-primitive-color-gray-10);
+  --xi-semantic-color-action-primary-default: var(--xi-semantic-theme-default-primary-7);
+  --xi-semantic-color-action-primary-hover: var(--xi-semantic-theme-default-primary-6);
+  --xi-semantic-color-action-primary-active: var(--xi-semantic-theme-default-primary-8);
+  --xi-semantic-color-action-primary-subtle-background: var(--xi-semantic-theme-default-primary-1);
+  --xi-semantic-color-action-primary-subtle-border: var(--xi-semantic-theme-default-primary-3);
+  /* 品牌强调操作，不替代常规主操作。 */
+  --xi-semantic-color-action-brand-accent-default: var(--xi-semantic-theme-vitality-primary-7);
+  --xi-semantic-color-action-disabled-text: var(--xi-primitive-color-gray-6);
+  --xi-semantic-color-action-disabled-background: var(--xi-primitive-color-background-page);
+  --xi-semantic-color-link-default: var(--xi-semantic-theme-default-primary-7);
+  --xi-semantic-color-link-hover: var(--xi-semantic-theme-default-primary-6);
+  --xi-semantic-color-link-active: var(--xi-semantic-theme-default-primary-8);
+  --xi-semantic-color-extension-sky-default: var(--xi-primitive-color-extension-sky-7);
+  --xi-semantic-color-extension-sky-text: var(--xi-primitive-color-extension-sky-8);
+  --xi-semantic-color-extension-sky-background-subtle: var(--xi-primitive-color-extension-sky-1);
+  --xi-semantic-color-extension-sky-background-hover: var(--xi-primitive-color-extension-sky-6);
+  --xi-semantic-color-extension-sky-border: var(--xi-primitive-color-extension-sky-3);
+  --xi-semantic-color-extension-amber-default: var(--xi-primitive-color-extension-amber-7);
+  --xi-semantic-color-extension-amber-text: var(--xi-primitive-color-extension-amber-8);
+  --xi-semantic-color-extension-amber-background-subtle: var(--xi-primitive-color-extension-amber-1);
+  --xi-semantic-color-extension-amber-background-hover: var(--xi-primitive-color-extension-amber-6);
+  --xi-semantic-color-extension-amber-border: var(--xi-primitive-color-extension-amber-3);
+  --xi-semantic-color-extension-orange-default: var(--xi-primitive-color-extension-orange-7);
+  --xi-semantic-color-extension-orange-text: var(--xi-primitive-color-extension-orange-8);
+  --xi-semantic-color-extension-orange-background-subtle: var(--xi-primitive-color-extension-orange-1);
+  --xi-semantic-color-extension-orange-background-hover: var(--xi-primitive-color-extension-orange-6);
+  --xi-semantic-color-extension-orange-border: var(--xi-primitive-color-extension-orange-3);
+  --xi-semantic-color-extension-purple-default: var(--xi-primitive-color-extension-purple-7);
+  --xi-semantic-color-extension-purple-text: var(--xi-primitive-color-extension-purple-8);
+  --xi-semantic-color-extension-purple-background-subtle: var(--xi-primitive-color-extension-purple-1);
+  --xi-semantic-color-extension-purple-background-hover: var(--xi-primitive-color-extension-purple-6);
+  --xi-semantic-color-extension-purple-border: var(--xi-primitive-color-extension-purple-3);
+  --xi-semantic-color-dark-highlight-1: var(--xi-primitive-color-dark-highlight-1);
+  --xi-semantic-color-dark-highlight-2: var(--xi-primitive-color-dark-highlight-2);
+  --xi-semantic-color-dark-highlight-3: var(--xi-primitive-color-dark-highlight-3);
+
+  /* semantic / typography */
+  --xi-semantic-typography-display-large-font-size: var(--xi-primitive-font-size-64);
+  --xi-semantic-typography-display-large-line-height: var(--xi-primitive-line-height-72);
+  --xi-semantic-typography-display-large-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  /* REVIEW: 58px/56 与统一公式冲突；原值保留，不生成 component 映射。 */
+  --xi-semantic-typography-display-medium-font-size: var(--xi-primitive-font-size-58);
+  /* REVIEW: 58px/56 与统一公式冲突；原值保留，不生成 component 映射。 */
+  --xi-semantic-typography-display-medium-line-height: var(--xi-primitive-line-height-56);
+  /* REVIEW: 58px/56 与统一公式冲突；原值保留，不生成 component 映射。 */
+  --xi-semantic-typography-display-medium-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  --xi-semantic-typography-headline-xl-font-size: var(--xi-primitive-font-size-36);
+  --xi-semantic-typography-headline-xl-line-height: var(--xi-primitive-line-height-44);
+  --xi-semantic-typography-headline-xl-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  --xi-semantic-typography-headline-large-font-size: var(--xi-primitive-font-size-28);
+  --xi-semantic-typography-headline-large-line-height: var(--xi-primitive-line-height-36);
+  --xi-semantic-typography-headline-large-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  --xi-semantic-typography-heading1-font-size: var(--xi-primitive-font-size-24);
+  --xi-semantic-typography-heading1-line-height: var(--xi-primitive-line-height-32);
+  --xi-semantic-typography-heading1-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  --xi-semantic-typography-heading2-font-size: var(--xi-primitive-font-size-18);
+  --xi-semantic-typography-heading2-line-height: var(--xi-primitive-line-height-26);
+  --xi-semantic-typography-heading2-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  --xi-semantic-typography-heading2-weight-medium: var(--xi-primitive-font-weight-label-medium);
+  --xi-semantic-typography-heading3-font-size: var(--xi-primitive-font-size-16);
+  --xi-semantic-typography-heading3-line-height: var(--xi-primitive-line-height-24);
+  --xi-semantic-typography-heading3-weight-regular: var(--xi-primitive-font-weight-label-regular);
+  --xi-semantic-typography-heading3-weight-medium: var(--xi-primitive-font-weight-label-medium);
+  --xi-semantic-typography-heading3-weight-bold: var(--xi-primitive-font-weight-label-bold);
+  --xi-semantic-typography-body-font-size: var(--xi-primitive-font-size-14);
+  --xi-semantic-typography-body-line-height: var(--xi-primitive-line-height-22);
+  --xi-semantic-typography-body-weight-regular: var(--xi-primitive-font-weight-label-regular);
+  --xi-semantic-typography-body-weight-medium: var(--xi-primitive-font-weight-label-medium);
+  --xi-semantic-typography-caption-font-size: var(--xi-primitive-font-size-12);
+  --xi-semantic-typography-caption-line-height: var(--xi-primitive-line-height-20);
+  --xi-semantic-typography-caption-weight-regular: var(--xi-primitive-font-weight-label-regular);
+  --xi-semantic-typography-caption-weight-medium: var(--xi-primitive-font-weight-label-medium);
+  --xi-semantic-typography-label-font-size: var(--xi-primitive-font-size-10);
+  --xi-semantic-typography-label-line-height: var(--xi-primitive-line-height-18);
+  --xi-semantic-typography-label-weight-regular: var(--xi-primitive-font-weight-label-regular);
+  --xi-semantic-typography-label-weight-medium: var(--xi-primitive-font-weight-label-medium);
+
+  /* semantic / radius */
+  /* REVIEW: 单位待确认。 */
+  --xi-semantic-radius-micro: var(--xi-primitive-radius-xs);
+  /* REVIEW: 单位待确认。 */
+  --xi-semantic-radius-control: var(--xi-primitive-radius-sm);
+  /* REVIEW: 单位待确认。 */
+  --xi-semantic-radius-card: var(--xi-primitive-radius-md);
+  /* REVIEW: 单位待确认。 */
+  --xi-semantic-radius-overlay: var(--xi-primitive-radius-lg);
+  /* REVIEW: 单位待确认。 */
+  --xi-semantic-radius-pill: var(--xi-primitive-radius-full);
+
+  /* semantic / layout */
+  --xi-semantic-layout-web-canvas-width: var(--xi-primitive-layout-web-canvas-width);
+  --xi-semantic-layout-web-grid-column-count: var(--xi-primitive-layout-web-grid-column-count);
+  --xi-semantic-layout-web-grid-gutter-compact: var(--xi-primitive-layout-web-grid-gutter-compact);
+  --xi-semantic-layout-web-grid-gutter-comfortable: var(--xi-primitive-layout-web-grid-gutter-comfortable);
+  --xi-semantic-layout-web-page-margin-large: var(--xi-primitive-layout-web-page-margin-large-screen);
+  --xi-semantic-layout-web-page-margin-small: var(--xi-primitive-layout-web-page-margin-small-screen);
+  --xi-semantic-layout-web-safe-margin: var(--xi-primitive-layout-web-safe-margin-default);
+  --xi-semantic-layout-web-sidebar-expanded-width: var(--xi-primitive-layout-web-sidebar-expanded-width);
+  --xi-semantic-layout-mobile-canvas-width: var(--xi-primitive-layout-mobile-canvas-width);
+  --xi-semantic-layout-mobile-canvas-height: var(--xi-primitive-layout-mobile-canvas-height);
+  --xi-semantic-layout-mobile-page-margin-compact: var(--xi-primitive-layout-mobile-page-margin-sample-compact);
+  --xi-semantic-layout-mobile-page-margin-default: var(--xi-primitive-layout-mobile-page-margin-sample-default);
+  --xi-semantic-layout-mobile-safe-area-bottom-min: var(--xi-primitive-layout-mobile-safe-area-bottom-min);
+
+  /* semantic / icon */
+  --xi-semantic-icon-size-default: var(--xi-primitive-icon-size-16);
+  --xi-semantic-icon-size-standard1x: var(--xi-primitive-icon-size-24);
+  --xi-semantic-icon-size-design-base: var(--xi-primitive-icon-canvas);
+  --xi-semantic-icon-safe-area: var(--xi-primitive-icon-safe-area);
+  --xi-semantic-icon-inset: var(--xi-primitive-icon-inset);
+  --xi-semantic-icon-weight-default: var(--xi-primitive-icon-stroke-regular);
+  --xi-semantic-icon-weight-emphasis: var(--xi-primitive-icon-stroke-medium);
+}
+
+/* === ENGINEERING MAPPING — COMPONENT ALIASES (base.md §7.1) === */
+:root,
+.content-agent-shell,
+.meeting-agent-shell,
+body:has(.meeting-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification),
+body:has(.content-agent-shell)
+  :is(.el-overlay, .el-popper, .el-message-box, .el-drawer, .el-dialog, .el-message, .el-notification) {
+  /* component / button */
+  --xi-component-button-primary-background-default: var(--xi-semantic-color-action-primary-default);
+  --xi-component-button-primary-background-hover: var(--xi-semantic-color-action-primary-hover);
+  --xi-component-button-primary-background-active: var(--xi-semantic-color-action-primary-active);
+  --xi-component-button-primary-text: var(--xi-semantic-color-text-inverse);
+
+  /* component / heading */
+  --xi-component-heading-text: var(--xi-semantic-color-text-primary);
+
+  /* component / paragraph */
+  --xi-component-paragraph-default-text: var(--xi-semantic-color-text-secondary);
+  --xi-component-paragraph-default-font-size: var(--xi-semantic-typography-body-font-size);
+  --xi-component-paragraph-default-line-height: var(--xi-semantic-typography-body-line-height);
+
+  /* component / input */
+  --xi-component-input-text: var(--xi-semantic-color-text-primary);
+  --xi-component-input-placeholder: var(--xi-semantic-color-text-placeholder);
+  --xi-component-input-border-default: var(--xi-semantic-color-border-default);
+  --xi-component-input-border-focus: var(--xi-semantic-color-action-primary-default);
+
+  /* component / table */
+  --xi-component-table-cell-text: var(--xi-semantic-color-text-primary);
+
+  /* component / card */
+  --xi-component-card-background: var(--xi-semantic-color-background-container);
+  --xi-component-card-title-font-size: var(--xi-semantic-typography-heading2-font-size);
+  --xi-component-card-title-line-height: var(--xi-semantic-typography-heading2-line-height);
+
+  /* component / dialog */
+  --xi-component-dialog-background: var(--xi-semantic-color-background-container);
+
+  /* component / alert */
+  --xi-component-alert-success-icon: var(--xi-semantic-color-feedback-success-default);
+
+  /* component / tag */
+  --xi-component-tag-success-background-strong: var(--xi-semantic-color-feedback-success-default);
+
+  /* component / page */
+  --xi-component-page-background: var(--xi-semantic-color-background-page);
+  --xi-component-page-shell-padding-inline-large: var(--xi-semantic-layout-web-page-margin-large);
+  --xi-component-page-shell-padding-inline-small: var(--xi-semantic-layout-web-page-margin-small);
+
+  /* component / mobile */
+  --xi-component-mobile-page-padding-bottom: var(--xi-semantic-layout-mobile-safe-area-bottom-min);
+
+  /* component / icon */
+  --xi-component-icon-base-box: var(--xi-semantic-icon-size-design-base);
+  --xi-component-icon-base-safe-area: var(--xi-semantic-icon-safe-area);
+  --xi-component-icon-base-inset: var(--xi-semantic-icon-inset);
+  --xi-component-icon-base-stroke: var(--xi-semantic-icon-weight-default);
+}
+
+/*
+ * PROJECT SOURCE — SHADOW NAMES RESERVED, VALUES NOT EMITTED:
+ * @Shadow / Web / SM, MD, LG; @Shadow / Mobile / SM, MD, LG;
+ * @Shadow / Colored / Primary, Accent, Warning, Success.
+ * 设计确认完整 CSS 参数后再新增同路径 Token；不要依据示意图目测。
+ */

@@ -1,0 +1,19 @@
+# Replace __PUBLIC_IP__ with the server public IP before use.
+# OPTIONAL: use only when nothing currently listens on port 80.
+# If an existing HTTP website is present, use its webroot for Certbot instead.
+# Never replace an existing website with this file.
+# Save as /www/server/panel/vhost/nginx/yifabao-media-relay.conf only if
+# /www/server/nginx/conf/nginx.conf includes that directory at http scope.
+server {
+    listen 80;
+    server_name __PUBLIC_IP__;
+    access_log off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/lib/yifabao-media-relay/acme;
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / { return 404; }
+}

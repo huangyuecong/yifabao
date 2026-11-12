@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "typeRoots": ["./node_modules/@types"],
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/auth/**/*.ts",
+    "src/views/agent/ContentEntryAuth.vue",
+    "src/api/agent/content.ts",
+    "src/api/agent/http.ts",
+    "src/api/agent/types.ts",
+    "src/router/modules/contentRoutes.ts",
+    "src/views/agent/ContentWorkbench.vue",
+    "src/views/agent/content/**/*.vue",
+    "src/views/agent/content/**/*.ts",
+    "types/env.d.ts",
+    "node_modules/element-plus/global.d.ts"
+  ],
+  "exclude": [
+    "src/types/auto-imports.d.ts",
+    "src/types/auto-components.d.ts",
+    "src/components/**",
+    "src/api/system/**",
+    "src/layout/**"
+  ]
+}

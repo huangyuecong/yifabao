@@ -1,0 +1,173 @@
+@import '../views/agent/content/xi-design-tokens.css';
+
+/* Specification adapter: Web only. Radius units and font fallback are engineering
+ * mappings; shadows, Mini buttons and mobile size conflicts remain unassigned. */
+:root {
+  --el-color-primary: var(--xi-semantic-color-action-primary-default) !important;
+  --el-color-primary-light-3: var(--xi-semantic-color-action-primary-hover) !important;
+  --el-color-primary-light-5: var(--xi-semantic-color-border-brand-strong) !important;
+  --el-color-primary-light-7: var(--xi-semantic-color-border-brand-subtle) !important;
+  --el-color-primary-light-8: var(--xi-semantic-color-background-brand-light) !important;
+  --el-color-primary-light-9: var(--xi-semantic-color-background-brand-subtle) !important;
+  --el-color-primary-dark-2: var(--xi-semantic-color-action-primary-active) !important;
+  --el-color-primary-hover: var(--xi-semantic-color-action-primary-hover);
+  --el-color-primary-active: var(--xi-semantic-color-action-primary-active);
+  --el-color-primary-border: var(--xi-semantic-color-border-brand-subtle);
+  --el-color-primary-plain: var(--xi-semantic-color-background-brand-subtle);
+  --element-selected-outline-stroke-color: var(--xi-semantic-color-border-brand-default);
+  --el-text-color-primary: var(--xi-semantic-color-text-primary);
+  --el-text-color-regular: var(--xi-semantic-color-text-secondary);
+  --el-text-color-secondary: var(--xi-semantic-color-text-tertiary);
+  --el-text-color-placeholder: var(--xi-semantic-color-text-placeholder);
+  --el-text-color-disabled: var(--xi-semantic-color-text-disabled);
+  --el-border-color: var(--xi-semantic-color-border-default);
+  --el-border-color-light: var(--xi-semantic-color-border-subtle);
+  --el-border-color-lighter: var(--xi-semantic-color-divider-default);
+  --el-border-color-extra-light: var(--xi-semantic-color-border-subtle);
+  --el-fill-color-light: var(--xi-semantic-color-background-page);
+  --el-fill-color-lighter: var(--xi-semantic-color-background-brand-subtle);
+  --el-bg-color: var(--xi-semantic-color-background-container);
+  --el-bg-color-overlay: var(--xi-semantic-color-background-container);
+  --el-bg-color-page: var(--xi-semantic-color-background-page);
+  --el-disabled-text-color: var(--xi-semantic-color-action-disabled-text);
+  --el-disabled-bg-color: var(--xi-semantic-color-action-disabled-background);
+  --el-disabled-border-color: var(--xi-semantic-color-border-subtle);
+  --el-font-size-base: var(--xi-semantic-typography-body-font-size);
+  --el-font-size-small: var(--xi-semantic-typography-caption-font-size);
+  --el-component-size: 32px;
+  --el-component-size-large: 40px;
+  --el-component-size-small: 28px;
+  --el-border-radius-base: calc(var(--xi-primitive-radius-sm) * 1px);
+  --el-border-radius-small: calc(var(--xi-primitive-radius-xs) * 1px);
+  --el-border-radius-round: calc(var(--xi-primitive-radius-full) * 1px);
+  --el-table-bg-custom-color: var(--xi-semantic-color-background-page);
+  --el-dialog-padding-primary: var(--xi-primitive-space-24);
+}
+
+@each $type in success, warning, danger, info {
+  :root {
+    --el-color-#{$type}: var(--xi-semantic-color-feedback-#{$type}-default) !important;
+    --el-color-#{$type}-light-3: var(--xi-semantic-color-feedback-#{$type}-background-hover) !important;
+    --el-color-#{$type}-light-5: var(--xi-semantic-color-feedback-#{$type}-border) !important;
+    --el-color-#{$type}-light-7: var(--xi-semantic-color-feedback-#{$type}-border) !important;
+    --el-color-#{$type}-light-8: var(--xi-semantic-color-feedback-#{$type}-background-light) !important;
+    --el-color-#{$type}-light-9: var(--xi-semantic-color-feedback-#{$type}-background-subtle) !important;
+    --el-color-#{$type}-dark-2: var(--xi-semantic-color-feedback-#{$type}-active) !important;
+    --el-color-#{$type}-hover: var(--xi-semantic-color-feedback-#{$type}-background-hover);
+    --el-color-#{$type}-active: var(--xi-semantic-color-feedback-#{$type}-active);
+    --el-color-#{$type}-border: var(--xi-semantic-color-feedback-#{$type}-border);
+    --el-color-#{$type}-plain: var(--xi-semantic-color-feedback-#{$type}-background-subtle);
+  }
+}
+
+body {
+  color: var(--xi-semantic-color-text-primary);
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', Arial, sans-serif;
+  font-size: var(--xi-semantic-typography-body-font-size);
+  line-height: calc(var(--xi-semantic-typography-body-line-height) * 1px);
+}
+button, input, textarea, select { font-family: inherit; }
+
+/* Preserve a 1px border in every state, and do not turn Text into Filled. */
+.el-button {
+  height: var(--el-component-size);
+  padding: 0 16px;
+  border-radius: var(--el-border-radius-base);
+  font-size: var(--el-font-size-base);
+}
+.el-button--large { height: var(--el-component-size-large); }
+.el-button--small { height: var(--el-component-size-small); padding-inline: 12px; }
+.el-button.is-round { border-radius: var(--el-border-radius-round); }
+.el-button.is-circle { width: var(--el-component-size); padding: 0; border-radius: 50%; }
+.el-button--large.is-circle { width: var(--el-component-size-large); }
+.el-button--small.is-circle { width: var(--el-component-size-small); }
+.el-button.is-link, .el-button.is-text { padding-inline: 4px; }
+.el-button.is-disabled { opacity: 0.4; }
+.el-button.is-disabled:not([class*='el-button--']) {
+  --el-button-disabled-text-color: var(--xi-semantic-color-text-secondary);
+  --el-button-disabled-bg-color: var(--xi-semantic-color-background-container);
+  --el-button-disabled-border-color: var(--xi-semantic-color-border-default);
+}
+@each $type in primary, success, warning, danger, info {
+  .el-tag--#{$type}:not(.el-tag--dark) {
+    --el-tag-text-color: var(--el-color-#{$type}-dark-2);
+  }
+  .el-tag--#{$type}.el-tag--light {
+    --el-tag-border-color: var(--el-color-#{$type}-light-7);
+  }
+  .el-button--#{$type} {
+    --el-button-disabled-text-color: var(--xi-semantic-color-text-inverse);
+    --el-button-disabled-bg-color: var(--el-color-#{$type});
+    --el-button-disabled-border-color: var(--el-color-#{$type});
+  }
+  .el-button--#{$type}.is-plain {
+    --el-button-bg-color: var(--el-color-#{$type}-light-9);
+    --el-button-border-color: var(--el-color-#{$type}-light-7);
+    --el-button-disabled-text-color: var(--el-color-#{$type});
+    --el-button-disabled-bg-color: var(--el-color-#{$type}-light-9);
+    --el-button-disabled-border-color: var(--el-color-#{$type}-light-7);
+  }
+  .el-button--#{$type}:is(.is-link, .is-text) {
+    --el-button-text-color: var(--el-color-#{$type});
+    --el-button-disabled-text-color: var(--el-color-#{$type});
+    &:not(.is-disabled):not(.is-loading):hover { color: var(--el-color-#{$type}-light-3); }
+    &:not(.is-disabled):not(.is-loading):active { color: var(--el-color-#{$type}-dark-2); }
+  }
+}
+
+.el-tag { height: 24px; border-radius: var(--el-border-radius-base); }
+.el-tag--small { height: 20px; }
+.el-tag--large { height: 32px; }
+.el-tag.is-round { border-radius: var(--el-border-radius-round); }
+/* Invalid is a neutral state, not Info blue and not a disabled control. */
+.el-tag.xi-status-invalid {
+  --el-tag-bg-color: var(--xi-semantic-color-feedback-invalid-background-subtle);
+  --el-tag-border-color: var(--xi-semantic-color-feedback-invalid-border);
+  --el-tag-text-color: var(--xi-semantic-color-feedback-invalid-text);
+}
+.el-tag.xi-status-invalid.el-tag--dark {
+  --el-tag-bg-color: var(--xi-semantic-color-feedback-invalid-default);
+  --el-tag-text-color: var(--xi-semantic-color-text-inverse);
+}
+.el-table {
+  --el-table-header-bg-color: var(--xi-semantic-color-background-page);
+  --el-table-header-text-color: var(--xi-semantic-color-text-primary);
+  --el-table-border-color: var(--xi-semantic-color-border-subtle);
+  --el-table-row-hover-bg-color: var(--xi-semantic-color-background-brand-subtle);
+}
+.el-tabs__item { height: 40px; }
+.el-tabs__nav-wrap::after { height: 1px; background-color: var(--xi-semantic-color-divider-default); }
+.el-empty__image { width: 140px; height: 140px; }
+.el-form-item__label { color: var(--xi-semantic-color-text-primary); }
+/* Select ships fixed heights; changing --el-component-size alone is insufficient. */
+.el-select__wrapper { min-height: var(--el-component-size); }
+.el-select--large .el-select__wrapper { min-height: var(--el-component-size-large); }
+.el-select--small .el-select__wrapper { min-height: var(--el-component-size-small); }
+.el-select-dropdown__item.is-hovering { background-color: var(--xi-semantic-color-background-brand-subtle); }
+.el-select-dropdown__item.is-selected { color: var(--xi-semantic-color-text-brand); }
+.el-dialog, .el-message-box {
+  min-width: min(480px, calc(100vw - 32px));
+  max-width: min(960px, calc(100vw - 32px));
+  border-radius: calc(var(--xi-primitive-radius-lg) * 1px);
+}
+.el-dialog__title, .el-message-box__title { font-size: var(--xi-semantic-typography-heading3-font-size); line-height: 24px; }
+.el-dialog__body, .el-message-box__message { overflow-wrap: anywhere; }
+.el-dialog__footer, .el-message-box__btns, .el-drawer__footer {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px;
+  .el-button + .el-button { margin-left: 0; }
+}
+/* Engineering supplement: keyboard visibility, small viewports and reduced motion. */
+.el-button:focus-visible, .el-pagination button:focus-visible,
+:where(button, a, [role='button'], [role='tab']):focus-visible {
+  outline: 2px solid var(--xi-semantic-color-border-brand-default); outline-offset: 2px;
+}
+@media (max-width: 767px) {
+  .el-dialog { --el-dialog-padding-primary: 16px; }
+  .el-pagination { flex-wrap: wrap; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.el-overlay, .el-popper, .el-message, .el-notification) *,
+  .el-overlay, .el-popper, .el-message, .el-notification {
+    transition-duration: 0ms !important; animation-duration: 0ms !important;
+  }
+}

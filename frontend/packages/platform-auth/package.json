@@ -1,0 +1,29 @@
+{
+    "name": "@yifabao/platform-auth",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "pnpm --dir ../../apps/entry exec vitest run --root ../.. --config apps/entry/vitest.config.ts packages/auth/tests"
+    },
+    "dependencies": {
+        "axios": "^1.19.0"
+    },
+    "peerDependencies": {
+        "vue": "^3.5.0"
+    },
+    "peerDependenciesMeta": {
+        "vue": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "typescript": "^5.9.3",
+        "vue": "^3.5.41"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./vue": "./src/vue.ts"
+    }
+}
