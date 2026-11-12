@@ -435,8 +435,9 @@ def test_text_failover_preserves_final_error_metadata_without_changing_attempts(
     posts = []
 
     def reject(request):
-        posts.append(json.loads(request.content)["model"])
-        if len(posts) == 1:
+        model = json.loads(request.content)["model"]
+        posts.append((model, request.url.path.rsplit("/", 1)[-1]))
+        if model == "primary":
             return httpx.Response(
                 503, json={"error": {"code": "ServiceUnavailable", "message": "later"}}
             )
@@ -459,7 +460,8 @@ def test_text_failover_preserves_final_error_metadata_without_changing_attempts(
     provider = FailoverTextProvider(_provider("primary"), _provider("fallback"))
     with pytest.raises(ProviderCallError) as captured:
         provider._invoke("_request_json", "copies", {}, lambda value: value)
-    assert posts == ["primary", "fallback"]
+    # A 5xx is retried once through /responses on the same model before failing over.
+    assert posts == [("primary", "completions"), ("primary", "responses"), ("fallback", "completions")]
     assert captured.value.code == "provider_rejected"
     assert captured.value.retryable is False
     assert captured.value.provider_request_id == "last-req"

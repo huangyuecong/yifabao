@@ -29,6 +29,16 @@ for path in [
     sys.path.insert(0, str(path))
 
 
+@pytest.fixture(autouse=True)
+def fresh_responses_preference():
+    """Forget which endpoints fell back to /responses, so no test inherits another's choice."""
+    from content_service import responses_fallback
+
+    responses_fallback._preferred.clear()
+    yield
+    responses_fallback._preferred.clear()
+
+
 @pytest.fixture(scope="session")
 def content_client():
     from content_service.main import app

@@ -481,7 +481,7 @@ def test_content_text_provider_fails_over_to_secondary_model(monkeypatch):
         },
         ensure_ascii=False,
     )
-    client = FakeClient([{}, chat_payload(valid)], status_codes=[503, 200])
+    client = FakeClient([{}, {}, chat_payload(valid)], status_codes=[503, 503, 200])
     monkeypatch.setattr(llm_adapters.httpx, "Client", lambda **_: client)
     common = {
         "provider_id": "configured-provider",
@@ -499,9 +499,11 @@ def test_content_text_provider_fails_over_to_secondary_model(monkeypatch):
 
     result = provider.copies(generation_input(), 1)
 
-    assert [item["json"]["model"] for item in client.posts] == [
-        "chat-max",
-        "chat-ds-flash",
+    # A 5xx is retried once through /responses on the same model before failing over.
+    assert [(item["json"]["model"], item["endpoint"].rsplit("/", 1)[-1]) for item in client.posts] == [
+        ("chat-max", "completions"),
+        ("chat-max", "responses"),
+        ("chat-ds-flash", "completions"),
     ]
     assert result.model == "chat-ds-flash"
     assert result.content[0]["title"] == "兜底文案"

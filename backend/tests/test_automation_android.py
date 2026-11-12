@@ -69,8 +69,10 @@ def test_status_reads_config_without_claiming_connection_or_publishing(configure
     result = android.status()
     assert result["available"] and result["adb_configured"] and result["configured"]
     assert result["ready"] is False
-    assert set(result["platforms"]) == {"xianyu"}
-    assert result["devices"][0]["platforms"] == ["xianyu"]
+    # Publishing currently runs in the browser only, so no platform is an Android
+    # execution target; configured Apps stay in the file without being offered.
+    assert result["platforms"] == {}
+    assert result["devices"][0]["platforms"] == []
     for platform in result["platforms"].values():
         assert platform["configured"] is False and platform["ready"] is False
         assert platform["accounts"] == [] and platform["missing"]

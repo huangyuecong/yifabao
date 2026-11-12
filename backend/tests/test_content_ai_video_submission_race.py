@@ -400,7 +400,7 @@ def test_retry_recovers_same_provider_job_and_archives_without_another_submissio
         response = main.retry_job(
             job_id,
             session=session,
-            identity=SimpleNamespace(user_id="owner-a"),
+            identity=SimpleNamespace(user_id="owner-a", department="", roles=frozenset({"admin"})),
             ai_video_provider=provider,
             video_composer=None,
             asset_store=store,

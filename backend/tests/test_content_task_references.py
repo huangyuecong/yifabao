@@ -698,7 +698,8 @@ def test_task_rejects_unauthorized_and_inactive_knowledge_resources(
         },
     )
     assert inactive_create.status_code == 422
-    assert "停用" in inactive_create.json()["detail"]
+    # Deleting now removes the entry; either way the task must not reference it.
+    assert inactive_create.json()["detail"] in {"所选知识库资料已停用", "所选知识库资料不存在"}
 
 
 @pytest.mark.parametrize("mode", ["full", "copy"])
