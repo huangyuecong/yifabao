@@ -84,6 +84,7 @@ from .knowledge_ingestion import load_official_jsonl_bundle
 from .library_deletion import LibraryDeletionConflict, delete_library_records, library_cleanup_loop
 from .library_resources import is_product_resource
 from .llm_adapters import ProviderCallError
+from .mcp_server import router as mcp_router
 from .media_adapters import (
     download_generated_video,
     provider_capability_document,
@@ -762,6 +763,7 @@ app.include_router(automation_router)
 app.include_router(browser_session_router)
 app.include_router(android_router)
 app.include_router(catalog_router)
+app.include_router(mcp_router)
 
 @app.exception_handler(ArchiveUnavailableError)
 async def original_unavailable_handler(request, exc):
