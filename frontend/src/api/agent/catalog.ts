@@ -58,6 +58,8 @@ export interface GenerationItem {
   model: string
   image_model: string
   content_id: string | null
+  /** Knowledge passages the copy was grounded on (RAG); empty for older items. */
+  references?: Array<{ title: string, excerpt: string, source: string }>
   options: Partial<Record<GenerationPart | 'voice' | 'music' | 'ai_video', boolean>>
   media: MediaRef[]
   product: ProductSummary

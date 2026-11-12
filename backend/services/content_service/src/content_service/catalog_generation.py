@@ -17,7 +17,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from sqlalchemy import select, true, update
 
-from . import db
+from . import catalog_knowledge, db
 from .catalog_media import absolute, new_work_dir, product_image_path, relative, save_jpeg
 from .catalog_models import GenerationBatch, GenerationItem, GenerationMedia, Product, ProductImage
 from .models import SensitiveRule, utcnow
@@ -25,7 +25,7 @@ from .models import SensitiveRule, utcnow
 logger = logging.getLogger(__name__)
 LEASE = timedelta(minutes=30)
 PARTS = ("copy", "images", "video")
-COPY_FIELDS = ("title", "body", "listing_title", "listing_description", "category", "model")
+COPY_FIELDS = ("title", "body", "listing_title", "listing_description", "category", "model", "references_json")
 
 _pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="catalog-generation")
 _inflight: set[str] = set()
@@ -197,6 +197,9 @@ def run_item(item_id: str) -> None:
             directory = new_work_dir("catalog", item.id)
             sources = _source_images(session, product, directory)
             facts = product_facts(product)
+            references = catalog_knowledge.references_for(
+                session, item.owner_id, product.name, product.category,
+                json.loads(product.specs_json or "[]")) if "copy" in parts else []
             instructions = "\n".join(filter(None, [
                 batch.instructions,
                 f"修改意见：{item.feedback}" if item.feedback else "",
@@ -216,13 +219,17 @@ def run_item(item_id: str) -> None:
             raise HTTPException(422, "商品没有图片，请先在商品库上传至少一张图片")
         if "copy" in parts:
             config = {"purpose": "creation", "platforms": [], "instructions": instructions}
-            product_doc = {"name": product.name, "text": facts, "category": product.category}
+            product_doc = {"name": product.name, "text": facts, "category": product.category,
+                           "references": references}
             generated, model = generate_draft(config, product_doc, sources[:4], rules, settings)
             draft.update(generated)
             values.update(title=generated["title"], body=generated["description"],
                           listing_title=generated["listing_title"][:60],
                           listing_description=generated["listing_description"],
-                          category=(product.category or generated.get("category") or "")[:64], model=model or "")
+                          category=(product.category or generated.get("category") or "")[:64], model=model or "",
+                          references_json=json.dumps([
+                              {"title": ref["title"], "excerpt": ref["text"][:300], "source": ref["source"]}
+                              for ref in references], ensure_ascii=False))
         elif not draft["title"]:
             # Copy was not requested: fall back to the product's own facts.
             draft.update(title=product.name[:20], description=facts[:900],

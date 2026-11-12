@@ -135,6 +135,7 @@ def item_document(session, item: GenerationItem, product: Product, images: list[
         "video_stale": item.video_stale, "video_note": item.video_note, "video_model": item.video_model, "pending_parts": [part for part in item.pending_parts.split(",") if part],
         "feedback": item.feedback, "review_note": item.review_note, "error": item.error,
         "model": item.model, "image_model": item.image_model, "content_id": item.content_id,
+        "references": json.loads(item.references_json or "[]"),
         "options": {"copy": batch.with_copy, "images": batch.with_images, "video": batch.with_video,
                     "voice": batch.video_voice, "music": batch.video_music,
                     "ai_video": batch.video_mode == "ai"} if batch else {},

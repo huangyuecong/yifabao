@@ -490,6 +490,21 @@ onBeforeUnmount(() => clearInterval(timer))
                 </div>
               </div>
             </div>
+            <section v-if="active.references?.length" class="references" aria-label="文案参考资料">
+              <h3>参考资料 <span class="wb-muted">（生成文案前从资料库检索）</span></h3>
+              <ul>
+                <li v-for="reference in active.references" :key="reference.title + reference.source">
+                  <strong>{{ reference.title }}</strong>
+                  <p>{{ reference.excerpt }}</p>
+                  <a
+                    v-if="reference.source.startsWith('https://') || reference.source.startsWith('http://')"
+                    :href="reference.source"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >查看来源</a>
+                </li>
+              </ul>
+            </section>
             <p v-if="active.model" class="model-note wb-muted">文案模型：{{ active.model }}</p>
           </div>
 
@@ -740,6 +755,40 @@ onBeforeUnmount(() => clearInterval(timer))
 .model-note {
   margin: 16px 0 0;
   font-size: 12px;
+}
+.references {
+  margin-top: 16px;
+}
+.references h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.references h3 span {
+  font-size: 12px;
+  font-weight: 400;
+}
+.references ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.references li {
+  padding: 8px 10px;
+  font-size: 12px;
+  background: var(--wb-hover);
+  border-radius: 4px;
+}
+.references p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 4px 0;
+  color: var(--xi-semantic-color-text-secondary);
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 .detail-actions {
   position: sticky;

@@ -511,3 +511,25 @@ def test_unavailable_image_channel_reports_safe_reason_and_removes_failed_output
     with pytest.raises(ProviderCallError, match='没有可用的兼容账号'):
         content.prepare_content(config(platforms=['douyin'], image_mode='generate'), identity())
     assert list((settings.data_dir / 'automation-media').iterdir()) == []
+
+
+def test_retrieved_references_are_sent_with_grounding_rules(source_db, monkeypatch):
+    _, settings = source_db
+    product, images, _, rules = content.load_sources(config(), identity(), settings)
+    model = SimpleNamespace(llm_provider="openai_compatible", llm_model="vision-model")
+    monkeypatch.setattr(content, "model_settings", lambda *_: model)
+    calls = []
+
+    def call(*args):
+        calls.append(args[2])
+        return json.dumps(result())
+
+    monkeypatch.setattr(content, "call_chat", call)
+    content.generate_draft(config(), product, images, rules, settings)
+    referenced = {**product, "references": [{"id": "R1", "title": "木制收纳盒", "text": "宣传语：收纳生活",
+                                             "source": "https://example.com/box", "category": "product"}]}
+    content.generate_draft(config(), referenced, images, rules, settings)
+    plain, grounded = (json.loads(messages[1]["content"][0]["text"]) for messages in calls)
+    assert "references" not in plain and "references" not in calls[0][0]["content"]
+    assert grounded["references"] == [{"id": "R1", "title": "木制收纳盒", "text": "宣传语：收纳生活"}]
+    assert "以商品事实为准" in calls[1][0]["content"] and "资料里没有的数字" in calls[1][0]["content"]

@@ -94,6 +94,8 @@ class GenerationItem(Base):
     error: Mapped[str] = mapped_column(String(500), default="")
     model: Mapped[str] = mapped_column(String(128), default="")
     image_model: Mapped[str] = mapped_column(String(128), default="")
+    # Knowledge passages retrieved for the copy (RAG), shown to the reviewer.
+    references_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     content_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
