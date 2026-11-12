@@ -1,46 +1,117 @@
-# AI 个性化内容智能体
+# 易发宝 · AI 商品内容生成与多平台发布工作台
 
-独立项目，只包含个性化内容业务：文案、图片、视频、素材和知识库。不包含会议纪要、声纹或说话人分离服务。
+易发宝把“一件商品”变成可以直接发布的多平台内容：在商品库录入商品后，AI 批量生成标题文案、宣传图片和宣传视频，人工审核通过后进入内容库，再一键分发到闲鱼（商品上架）以及抖音、小红书、快手（内容宣传）。适合需要在多个平台持续上新、又要守住广告法等合规要求的商家和运营人员，示例数据为白酒类商品。
 
-- `backend/`：内容 FastAPI 服务
-- `frontend/`：只保留内容智能体页面的 Vue 前端脚手架
-- `launcher/`：独立启动器
+- **人做决定，AI 干活**：选商品、审核、确认发布由人完成；检索资料、写文案、出图、剪视频、合规检测、填写发布表单由系统完成。
+- **运营助手 Agent**：在 AI 对话里用一句话完成“查商品 → 发起生成 → 查进度 → 准备发布”，每一步实时可见。
+- **可复用的工作流**：同一批内容可以反复分发到不同平台，每次执行都留下发布记录；结果不明的记录标为“待核查”，不会自动重试。
 
-达梦数据库与 WeKnora 知识平台支持显式配置接入，默认保留本地模式。连接配置项见 `backend/.env.example`。
+## AI 能力一览
+
+| 能力 | 实现 | 代码位置 |
+| --- | --- | --- |
+| 大模型集成 | OpenAI 兼容接口，可配置文本、视觉、图片、视频、配音、配乐模型；主模型失败时自动切换备用模型；输出按 JSON 契约校验 | `chat_provider.py`、`llm_adapters.py`、`config.py` |
+| Agent 工作流 | **运营助手**：先规划，再通过函数调用多轮执行 10 个工作台工具，计划、每一步的状态和结果实时推送到页面；审核和发布始终留给人确认 | `chat_agent.py`、`agent_tools.py`、`AgentTrace.vue` |
+| RAG | 批量生成文案前，从资料库检索该商品的官方资料（宣传语、产品故事、工艺设计），只引用同一商品的内容，审核页展示参考来源；附对照评测 | `catalog_knowledge.py`、`automation_content.py`、[评测报告](backend/docs/rag-evaluation.md) |
+| MCP / Function Calling | 对话先由模型通过函数调用在 5 个工具中选择（失败时回退规则）；工作台工具同时通过 **MCP 协议**（2025-06-18，Streamable HTTP + stdio 桥接）开放给外部 AI 客户端 | `chat_tools.py`、`mcp_server.py`、`backend/scripts/mcp_stdio.py` |
+| 多模态 | 视觉模型识别商品图并分类；文生图 / 参考图生成宣传图；图生视频镜头 + FFmpeg 合成，含配音、配乐和字幕 | `automation_content.py`、`catalog_video.py`、`catalog_ai_video.py` |
+| AI 安全与可控 | 广告法禁用词和敏感词规则拦截生成结果；资料、图片文字、对话内容一律按“数据而非指令”处理；生成结果必须人工审核；Agent 写操作需要权限且不能发布 | `catalog_routes.py`、`agent_tools.py` |
+| AI 交互体验 | 对话回复 SSE 流式输出；生成图片、视频、文档时显示阶段；Agent 计划和步骤可视化 | `chat_live.py`、`ContentChatView.vue` |
+
+### RAG 效果评测
+
+`backend/scripts/rag_eval.py` 用真实模型对同一批商品各生成两次文案（输入完全相同，唯一区别是是否附带检索到的资料），统计文案用到了多少官方资料里的独特细节、是否出现资料中没有的编造数字，并让模型在不知道哪一版用了检索的情况下盲评。结果见 [backend/docs/rag-evaluation.md](backend/docs/rag-evaluation.md)：
+
+| 指标（随机抽取 10 个商品，文本模型 chat-max） | 不检索 | 检索增强 |
+| --- | --- | --- |
+| 用到的官方资料独特细节（共 552 条可用） | 12 | **134** |
+| 资料中没有的数字 | 1 | 1 |
+| 盲评“具体度与辨识度”胜出 | 0 | **10** |
+| 盲评“事实准确”胜出 | 0 | **10** |
+
+检索后文案写出了大量商品独有的宣传语、产品故事和设计细节，而没有多出编造的数据。两组各 1 个“资料中没有的数字”都是模型从商品图瓶身读到的“100ml”，并主动指出它与商品信息“500ml×6”不一致，不是编造。
+
+## 系统架构
+
+```mermaid
+flowchart LR
+  subgraph 前端["前端 Vue 3 + TypeScript + Element Plus"]
+    W[工作台页面<br/>商品库 / 生成与审核 / 内容库 / 发布] --- C[AI 对话 + 运营助手]
+  end
+  subgraph 后端["内容服务 FastAPI"]
+    API[REST API] --> G[批量生成<br/>文案·图片·视频]
+    API --> A[运营助手 Agent]
+    A --> T[工作台工具]
+    M[MCP 端点] --> T
+    G --> K[资料检索 RAG]
+    G --> R[合规规则]
+    API --> P[发布工作流<br/>浏览器自动化]
+  end
+  前端 -->|HTTP / SSE| API
+  X[外部 AI 客户端] -->|MCP| M
+  G --> L[(大模型 / 图片 / 视频<br/>配音 / 配乐服务)]
+  A --> L
+  P --> S[闲鱼 · 抖音 · 小红书 · 快手]
+  T --> D[(SQLite / 达梦)]
+  K --> D
+```
+
+- `frontend/`：Vue 3 + TypeScript + Element Plus。工作台页面按需加载，打开工作台所需脚本从 1490 KB 降到 561 KB（gzip）。
+- `backend/services/content_service/`：FastAPI 内容服务（端口 8002），SQLAlchemy + Alembic 迁移，默认 SQLite，可切换达梦数据库；资料检索可接入 WeKnora。
+- `launcher/`：Windows 一键启动器，检查依赖和端口后启动前后端。
+
+主流程：「商品库」维护商品（名称、价格、1–9 张图片、参数）→ 勾选一批商品「批量生成」，可选标题和文案、宣传图片、宣传视频 →「生成与审核」由管理员通过、驳回、修改或按意见重新生成 → 通过后写入「内容库」→「商品上架」（闲鱼）和「内容宣传」（抖音、小红书、快手）两个独立工作流从内容库选取内容执行 → 每次执行都写入「发布记录」。「内容宣传」会按三个平台发布页的样子预览标题、正文和视频，并标红超出平台字数限制的部分。
+
+## 安装与运行
 
 | 组件 | 端口 |
 |---|---|
 | 前端 | 8200 |
 | 内容 API | 8002 |
 
-## 首次运行
+1. 在 `backend` 创建 Python 3.12 虚拟环境并安装 `requirements-dev.txt`，复制 `backend/.env.example` 为 `backend/.env`，填写模型接口地址和密钥（也可以启动后在“模型与服务”页面里设置）。
+2. 在 `frontend` 安装依赖：
 
-在 `backend` 创建 Python 3.12 虚拟环境并安装 `requirements-dev.txt`。前端使用 Element Plus 和本地 Vue 组件，不需要公司私有组件仓库。在 `frontend` 依次执行：
+   ```powershell
+   pnpm install --store-dir ../.pnpm-store --frozen-lockfile --prefer-offline --ignore-scripts --registry=https://registry.npmjs.org
+   pnpm rebuild esbuild @swc/core vue-demi
+   ```
 
-```powershell
-pnpm install --store-dir ../.pnpm-store --frozen-lockfile --prefer-offline --ignore-scripts --registry=https://registry.npmjs.org
-pnpm rebuild esbuild @swc/core vue-demi
+3. 运行 `launcher/start.ps1`（或编译后的启动器 EXE），打开 http://127.0.0.1:8200/content/ 。
+
+本机工作台无需登录，前后端只监听本机回环地址。启动前会检查依赖、Vite 配置和端口归属；缺失依赖时直接报错，不会先启动一半服务。在“模型与服务”中点击“修改模型”，可设置文本、图片、视频、配音和背景音乐服务；已有密钥不会回显。
+
+可选开关（`backend/.env`）：`CONTENT_CHAT_STREAMING`（流式回复）、`CONTENT_CHAT_TOOL_ROUTING`（函数调用选工具）、`CONTENT_CATALOG_RAG`（批量生成时检索资料），默认都开启。达梦数据库与 WeKnora 知识平台的配置项见 `backend/.env.example`。
+
+### 通过 MCP 使用工作台
+
+工作台运行时，支持 MCP 的客户端可以直接连接 `http://127.0.0.1:8002/api/v1/mcp`（Streamable HTTP）。只支持本地进程方式的客户端（如桌面版 AI 助手）使用 stdio 桥接：
+
+```json
+{
+  "mcpServers": {
+    "yifabao": {
+      "command": "<项目目录>/backend/.venv/Scripts/python.exe",
+      "args": ["<项目目录>/backend/scripts/mcp_stdio.py"]
+    }
+  }
+}
 ```
 
-上述安装方式适用于不含 `.git` 的项目副本：跳过开发 Git hooks 等安装脚本，再构建前端需要的本地依赖。
+可用工具：`workbench_overview`、`search_products`、`list_review_items`、`list_contents`、`list_publish_records`、`search_knowledge`、`check_compliance`、`start_generation`、`regenerate_item`、`prepare_publish`。
 
-日常只需双击根目录的 `AI个性化内容智能体启动器.exe`。重复的 EXE、CMD 和中文启动 PS1 入口已移除。
+## 测试
 
-`launcher` 中的脚本是该 EXE 的内部依赖，不是需要另外打开的启动器，不能删除。重新编译使用 `launcher/build.ps1`，只生成根目录这一个 EXE。
+```powershell
+cd backend; .\.venv\Scripts\python.exe -m pytest -q tests
+cd frontend; node --test scripts/*.test.mjs
+```
 
-启动前会检查依赖、Vite 配置和端口归属；缺失依赖时直接显示失败，不自动安装，也不会先启动一半服务。关闭启动器窗口不会停止服务，可使用窗口中的“停止服务”。
+运营助手、MCP 和 RAG 的测试分别在 `backend/tests/test_chat_agent.py`、`test_mcp_server.py`、`test_catalog_rag.py`，用脚本化的假模型覆盖规划、工具调用、失败保留、权限和发布边界。
 
-页面：http://127.0.0.1:8200/content/
+## 团队信息
 
-本机工作台无需登录，也不显示企业品牌或账号菜单。在“模型与服务”中点击“修改模型”，即可设置文本、图片、视频、配音和背景音乐服务的接口地址、模型与密钥；保存后用于后续生成。已有密钥不会回显，保持原接口且密钥留空时继续使用原配置。
-
-本机启动使用 `frontend/.env.dev` 的 `VITE_CONTENT_AUTH_MODE=standalone`，并在 `backend/.env` 设置 `CONTENT_STANDALONE_MODE=true`、`CONTENT_IDENTITY_MODE=development`。前后端只监听本机回环地址，沿用 `dev-user` 的原有任务和资料。修改运行模式后需通过启动器停止并重新启动服务。
-
-主流程：「商品库」维护商品（名称、价格、1–9 张图片、参数）→ 勾选一批商品「批量生成」，可选标题和文案、宣传图片、宣传视频 →「生成与审核」由管理员通过、驳回、修改或按意见重新生成 → 通过后写入「内容库」→「商品上架」（闲鱼）和「内容宣传」（抖音、小红书、快手）两个独立工作流从内容库选取内容执行 → 每次执行都写入「发布记录」，提交后结果不明的记录标为「待核查」，不会自动重试。数据表见 `catalog_models.py`（products、product_images、generation_batches、generation_items、product_contents、publish_records 等）。「内容宣传」选好内容后会按抖音、小红书、快手发布页的样子预览标题、正文和视频（点击画面可播放），并标红超出平台字数限制的部分，超限内容无法提交。已有闲鱼商品的上下架仍在「商品上架 → 已有商品上下架」。
-
-现已增加安卓 App 执行结构，宣传平台目录包含抖音、小红书、快手，商品平台从闲鱼开始扩展。新建工作流可选安卓设备，旧浏览器配置继续兼容。当前安卓适配器均待实现，未连接模拟器时可保存规则、生成草稿，实际发布会被拦截。
-
-AI 对话的回复通过 SSE 逐段显示，生成图片、视频、文档时显示当前阶段；系统先让对话模型通过 Function Calling 在“文字回答、生成文档、生成图片、生成视频”四个工具中选择一个，模型不支持或调用失败时改用规则匹配，回复上会标出所用方式。两项能力可分别用 `backend/.env` 的 `CONTENT_CHAT_STREAMING`、`CONTENT_CHAT_TOOL_ROUTING` 关闭。
+广东东软学院 · 勇敢牛牛，不怕困难
 
 ## 开源声明
 
