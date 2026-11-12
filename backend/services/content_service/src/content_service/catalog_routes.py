@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from agent_core import Identity
 
-from . import catalog_generation, catalog_publishing, db
+from . import catalog_generation, catalog_publishing, db, demo_quota
 from .access_control import get_content_identity as get_identity
 from .access_routes import PrivateAccessRoute
 from .ai_model_config import write_header
@@ -412,6 +412,8 @@ def create_batch(body: BatchInput, identity: Identity = Depends(require_publishe
         GenerationItem.owner_id == identity.user_id, GenerationItem.status.in_(("queued", "running"))))
     if active + len(ids) > 200:
         raise HTTPException(429, f"当前还有 {active} 个商品在生成中，请稍后再提交")
+    if body.with_video:
+        demo_quota.use_videos(len(ids))  # one video per product
     parts = [part for part, wanted in (("copy", body.with_copy), ("images", body.with_images),
                                        ("video", body.with_video)) if wanted]
     labels = {"copy": "文案", "images": "图片", "video": "视频"}
@@ -543,6 +545,8 @@ def regenerate_item(item_id: str, body: RegenerateInput, identity: Identity = De
     item = owned(session, GenerationItem, item_id, identity)
     if item.status not in REVIEWABLE:
         raise HTTPException(409, "当前状态不能重新生成")
+    if "video" in body.parts:
+        demo_quota.use_videos(1)
     item.status, item.pending_parts = "queued", ",".join(dict.fromkeys(body.parts))
     item.feedback, item.error, item.updated_at = clean(body.feedback), "", utcnow()
     audit(session, identity, "item_regenerate", item.id, {"parts": body.parts})

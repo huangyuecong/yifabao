@@ -40,11 +40,7 @@ from .access_control import get_content_identity as get_identity
 from .access_routes import router as local_access_router
 from .advertising_law_rules import SEED_ID, advertising_law_seed_enabled, seed_advertising_law_rules
 from .ai_model_config import router as ai_model_configuration_router
-from .automation_jobs import recover_interrupted as recover_automation_runs
-from .automation_routes import router as automation_router
-from .automation_browser_session_routes import router as browser_session_router
 from .android_routes import router as android_router
-from .catalog_routes import router as catalog_router
 from .archive_drafts import (
     archive_snapshot_time,
     edit_draft_fields,
@@ -54,9 +50,17 @@ from .archive_drafts import (
     promote_edit_draft,
     restore_archive_as_draft,
 )
+from .automation_browser_session_routes import router as browser_session_router
+from .automation_jobs import recover_interrupted as recover_automation_runs
+from .automation_routes import router as automation_router
+from .catalog_routes import router as catalog_router
 from .chat_routes import router as chat_router
 from .config import load_settings
 from .db import SessionLocal, get_session, init_database
+from .demo_quota import check as demo_quota_check
+from .demo_quota import record as demo_quota_record
+from .demo_quota import tag_visitor as demo_tag_visitor
+from .demo_quota import use_videos as demo_use_videos
 from .export_selection import resolve_task_export_artifacts
 from .generation import (
     EgressDeniedError,
@@ -755,6 +759,8 @@ app = FastAPI(
 install_request_context(app, "content-service")
 install_cors(app, "CONTENT_CORS_ORIGINS")
 install_utc_datetime_responses(app)
+app.middleware("http")(demo_tag_visitor)  # online trial: per-visitor video allowance
+
 app.include_router(ai_model_configuration_router)
 app.include_router(local_access_router)
 app.include_router(knowledge_sync_router)
@@ -6461,6 +6467,8 @@ def generate_video_project_ai_video(
         selected_knowledge,
         max_chars=8_000,
     )
+    # Checked before queueing; counted only when a new job is created (a repeated request is free).
+    demo_quota_check(1)
     try:
         queued = enqueue_project_ai_video(
             session,
@@ -6495,6 +6503,7 @@ def generate_video_project_ai_video(
         cleanup_failed_ai_video_submission(session, exc)
         raise video_project_generation_http_error(exc, clear_generation_error=True) from exc
     if queued.created:
+        demo_quota_record(1)
         audit(
             session,
             identity.user_id,
@@ -9077,6 +9086,7 @@ def generate_ai_video(
             )
             for shot_index, prompt, shot in prompt_shots
         ]
+    demo_use_videos(len(prompt_shots))  # one model-generated clip per shot
     requested_knowledge_ids = generation_knowledge_resource_ids(payload.parameters)
     resolved_knowledge_ids, allow_cross_owner_knowledge = resolve_generation_knowledge_resources(
         session,

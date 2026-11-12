@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agent_core import Identity
 
-from . import chat_live, chat_tools, speech_input
+from . import chat_live, chat_tools, demo_quota, speech_input
 from .access_control import get_content_identity as get_identity
 from .access_routes import PrivateAccessRoute
 from .ai_model_config import require_manager, write_header
@@ -244,6 +244,8 @@ def _generate(
             request.update(output=routing["output"], routing=routing)
     request = prepare_generation_request(store, identity.user_id, conversation_id, history, request)
     settings, model, output = plan_generation(settings, model, history, request)
+    if output == "video":
+        demo_quota.use_videos(1)
     validate_generation(
         store, identity.user_id, conversation_id, settings, model, history, request, output
     )

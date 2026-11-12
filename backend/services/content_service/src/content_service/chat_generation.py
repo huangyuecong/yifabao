@@ -1,5 +1,6 @@
 """Bounded background creation, with persisted results and retriable failures."""
 
+import contextvars
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -774,7 +775,8 @@ def release_generation():
 
 def submit_generation(*args):
     try:
-        _executor.submit(_run, *args)
+        # Carry the request context (e.g. the trial visitor) into the worker thread.
+        _executor.submit(contextvars.copy_context().run, _run, *args)
     except Exception:
         _capacity.release()
         raise
