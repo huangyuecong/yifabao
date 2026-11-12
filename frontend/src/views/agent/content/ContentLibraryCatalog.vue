@@ -155,14 +155,6 @@ function dataLevelLabel(value: LibraryDataLevel) {
   return dataLevelLabels[value] ?? '等级待确认'
 }
 
-function shortDate(value?: string) {
-  if (!value) {
-    return '日期待确认'
-  }
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '日期待确认' : date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
-
 function editResource(item: LibraryItem) {
   detailOpen.value = false
   emit('edit', item)
@@ -669,7 +661,7 @@ watch(() => props.resources, () => {
               <p :title="resourceSummary(item)">{{ resourceSummary(item) }}</p>
               <div class="resource-card-meta">
                 <span :title="seriesName(item) || categoryLabel(item.category)">{{ seriesName(item) || categoryLabel(item.category) }}</span>
-                <span>{{ shortDate(item.updated_at) }}</span>
+                <span>{{ item.updated_at ? formatDate(item.updated_at).slice(0, 10) : '日期待确认' }}</span>
               </div>
             </div>
           </article>
@@ -794,7 +786,7 @@ watch(() => props.resources, () => {
             <div><dt>业务分类</dt><dd>{{ categoryLabel(selectedResource.category) }}</dd></div>
             <div v-if="seriesName(selectedResource)"><dt>产品系列</dt><dd>{{ seriesName(selectedResource) }}</dd></div>
             <div><dt>当前版本</dt><dd>v{{ selectedResource.version }}</dd></div>
-            <div><dt>更新时间</dt><dd>{{ shortDate(selectedResource.updated_at) }}</dd></div>
+            <div><dt>更新时间</dt><dd>{{ formatDate(selectedResource.updated_at) }}</dd></div>
             <div><dt>时效状态</dt><dd>{{ selectedResource.freshness || '未标记' }}</dd></div>
           </dl>
 

@@ -25,6 +25,7 @@ import ContentProductPicker from './ContentProductPicker.vue'
 import { relatedMedia } from './contentResourceCatalog'
 import ContentResourcePicker from './ContentResourcePicker.vue'
 import ContentResourcePreview from './ContentResourcePreview.vue'
+import { compareContentDateTimeDescending, formatDate } from './contentWorkflow'
 import { useLocalAccess } from './localAccess'
 
 defineOptions({ name: 'ContentAutomationView' })
@@ -481,11 +482,6 @@ function stateType(state: string): 'success' | 'warning' | 'danger' | 'info' | '
   }
   return 'info'
 }
-function timeLabel(value: string) {
-  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/iu.test(value) ? value : `${value.replace(' ', 'T')}Z`
-  const date = new Date(normalized)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false })
-}
 function receiptUrl(value?: string) {
   try {
     const parsed = new URL(value || '')
@@ -524,7 +520,7 @@ function updateRun(run: AutomationRun, resetDraft = false) {
   }
   selectedRun.value = run
   runs.value = [run, ...runs.value.filter(item => item.id !== run.id)].sort((left, right) =>
-    right.created_at.localeCompare(left.created_at),
+    compareContentDateTimeDescending(left.created_at, right.created_at),
   )
   if (resetDraft) {
     Object.assign(draft, { title: '', description: '', category: '', price: null }, run.draft || {})
@@ -1861,7 +1857,7 @@ onBeforeUnmount(() => {
       </ul>
       <details v-for="run in legacyRuns" :key="run.id" class="legacy-run">
         <summary>
-          {{ run.config.name }} · {{ stateLabel(run.status) }} · {{ timeLabel(run.created_at) }}
+          {{ run.config.name }} · {{ stateLabel(run.status) }} · {{ formatDate(run.created_at) }}
         </summary>
         <p>{{ run.draft.title }}</p>
         <p class="legacy-copy">{{ run.draft.description }}</p>
@@ -1884,7 +1880,7 @@ onBeforeUnmount(() => {
         </div>
         <ol v-if="run.events?.length" class="event-list">
           <li v-for="event in run.events" :key="event.id">
-            <time>{{ timeLabel(event.created_at) }}</time>
+            <time>{{ formatDate(event.created_at) }}</time>
             <span>{{ event.message }}</span>
           </li>
         </ol>
@@ -1928,7 +1924,7 @@ onBeforeUnmount(() => {
                 {{ stateLabel(run.status, run.config.operation) }}
               </ElTag>
             </div>
-            <span>{{ timeLabel(run.created_at) }}</span>
+            <span>{{ formatDate(run.created_at) }}</span>
             <small>{{ executionLabel(run.config) }}<template v-if="deviceLabel(run.config)"> · {{ deviceLabel(run.config) }}</template></small>
             <small>{{ operationLabel(run.config.operation) }} · {{ run.id.slice(0, 12) }}</small>
           </button>
@@ -2210,7 +2206,7 @@ onBeforeUnmount(() => {
             <h3>执行步骤</h3>
             <ol class="event-list">
               <li v-for="event in selectedRun.events" :key="event.id">
-                <time>{{ timeLabel(event.created_at) }}</time>
+                <time>{{ formatDate(event.created_at) }}</time>
                 <span>
                   {{ event.platform ? `${platformName(event.platform)} · ` : ''
                   }}{{ event.message }}

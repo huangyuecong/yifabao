@@ -704,6 +704,9 @@ function copyContentWithConfirmedTitle(content: ArtifactContent) {
     : undefined
   return {
     ...content,
+    // The confirmed topic title is the copy's title through preview and save, even
+    // when an AI preview returns only the body.
+    title,
     ...(candidates ? { candidates } : {}),
     ...(selectedCandidate ? { selected_candidate: selectedCandidate } : {}),
   }

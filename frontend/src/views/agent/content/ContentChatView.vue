@@ -24,6 +24,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { chatApi, streamReply } from '@/api/agent/chat'
 import { saveBlob } from '@/api/agent/http'
 import AgentTrace from './AgentTrace.vue'
+import { formatDate } from './contentWorkflow'
 
 defineOptions({ name: 'ContentChatView' })
 
@@ -157,11 +158,6 @@ function fileIcon(kind: string) {
 function fileSize(size: number) {
   // eslint-disable-next-line financial/no-division -- Byte size conversion, not financial arithmetic.
   return size < 1024 * 1024 ? `${Math.max(1, Math.round(size / 1024))} KB` : `${(size / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function shortDate(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
 }
 
 function modelName(id: string) {
@@ -1060,7 +1056,7 @@ onBeforeUnmount(() => {
             :title="item.title"
             @click="selectConversation(item.id)"
           >
-            <span>{{ item.title }}</span><small>{{ shortDate(item.updated_at) }}</small>
+            <span>{{ item.title }}</span><small>{{ formatDate(item.updated_at).slice(5, 10) }}</small>
           </button>
           <ElButton
             text
@@ -1451,7 +1447,7 @@ onBeforeUnmount(() => {
           :disabled="busy || uploading"
           @click="selectConversation(item.id)"
         >
-          <span>{{ item.title }}</span><small>{{ shortDate(item.updated_at) }}</small>
+          <span>{{ item.title }}</span><small>{{ formatDate(item.updated_at).slice(5, 10) }}</small>
         </button>
         <ElButton
           text

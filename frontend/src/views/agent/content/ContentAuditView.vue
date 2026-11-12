@@ -2,6 +2,7 @@
 import type { ContentAuditLog } from '@/api/agent/content'
 import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { contentApi } from '@/api/agent/content'
+import { formatDate } from './contentWorkflow'
 import { accessErrorStatus, useLocalAccess } from './localAccess'
 
 defineOptions({ name: 'ContentAuditView' })
@@ -105,7 +106,7 @@ onActivated(load)
       <div class="audit-table">
         <ElTable :data="records" row-key="id" empty-text="本页暂无匹配记录">
           <ElTableColumn type="expand"><template #default="{ row }"><pre class="audit-details">{{ detailsText(row.details) }}</pre></template></ElTableColumn>
-          <ElTableColumn label="时间" min-width="170"><template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template></ElTableColumn>
+          <ElTableColumn label="时间" min-width="170"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></ElTableColumn>
           <ElTableColumn
             prop="owner_id"
             label="操作人账号"
