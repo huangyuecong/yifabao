@@ -19,7 +19,7 @@ from sqlalchemy import select
 
 from agent_core import Identity
 
-from . import db
+from . import china_time, db
 from .access_control import has_permission
 from .providers import KnowledgeQuery
 
@@ -122,6 +122,7 @@ def _list_items(identity: Identity, args: dict) -> dict:
                 "status": _STATUS_LABELS.get(item["status"], item["status"]), "title": item["title"],
                 "body": _text(item["body"], 160), "error": item["error"], "feedback": item["feedback"],
                 "media": sorted({media["kind"] for media in item["media"]}),
+                "updated": china_time.format_time(item["updated_at"]),
             } for item in data["items"]]}
 
 
@@ -133,7 +134,7 @@ def _list_contents(identity: Identity, args: dict) -> dict:
                              page_size=_limit(args, 10, 30), identity=identity, session=session)
     return {"total": data["total"], "contents": [{
         "id": item["id"], "product": item["product"]["name"], "title": item["title"],
-        "has_video": item["has_video"],
+        "has_video": item["has_video"], "approved": china_time.format_time(item["approved_at"]),
         "published": [f"{row['platform']}:{row['status']}" for row in item["publishes"]],
     } for item in data["items"]]}
 
@@ -144,14 +145,24 @@ def _list_records(identity: Identity, args: dict) -> dict:
     workflow = args.get("workflow") or None
     if workflow not in {None, "listing", "promotion"}:
         raise ToolError("workflow 只能是 listing 或 promotion")
+    day = _text(args.get("day"), 10) or None
+    if day:
+        try:
+            day = china_time.parse_day(day).isoformat()
+        except ValueError:
+            raise ToolError("day 只能是 today、yesterday 或 YYYY-MM-DD") from None
     with db.SessionLocal() as session:
         data = list_records(workflow=workflow, status=args.get("status") or None, platform=None, page=1,
-                            page_size=_limit(args, 10, 30), identity=identity, session=session)
-    return {"total": data["total"], "counts": data["counts"], "records": [{
+                            page_size=_limit(args, 10, 30), day=day, identity=identity, session=session)
+    result = {"total": data["total"], "counts": data["counts"], "records": [{
         "id": row["id"], "workflow": row["workflow"], "platform": row["platform"], "status": row["status"],
         "product": row["product_name"], "title": row["title"], "error": _text(row["error"], 120),
-        "url": row["external_url"],
+        "url": row["external_url"], "created": china_time.format_time(row["created_at"]),
+        "finished": china_time.format_time(row["finished_at"]),
     } for row in data["items"]]}
+    if day:
+        result["day"] = day
+    return result
 
 
 def search_knowledge(identity: Identity, query: str, limit: int = 4, *, categories: tuple[str, ...] = ()):
@@ -261,9 +272,12 @@ TOOLS: dict[str, Tool] = {tool.name: tool for tool in (
          "列出审核通过、可以发布的内容，含内容 ID、标题、是否有视频以及各平台发布状态。",
          _schema({"keyword": {"type": "string"}, **_LIMIT}), _list_contents),
     Tool("list_publish_records", "查看发布记录",
-         "列出闲鱼上架或抖音/小红书/快手宣传的发布记录、状态和失败原因。",
+         "列出闲鱼上架或抖音/小红书/快手宣传的发布记录、提交与完成时间（北京时间）、状态和失败原因。"
+         "问“今天/昨天/某天发了什么”时传 day 只看那一天。",
          _schema({"workflow": {"type": "string", "enum": ["listing", "promotion"]},
-                  "status": {"type": "string", "description": "如 succeeded、failed、uncertain"}, **_LIMIT}),
+                  "status": {"type": "string", "description": "如 succeeded、failed、uncertain"},
+                  "day": {"type": "string", "description": "只看某一天（北京时间）：today、yesterday 或 YYYY-MM-DD"},
+                  **_LIMIT}),
          _list_records),
     Tool("search_knowledge", "检索企业资料",
          "在资料库中检索产品资料、品牌和企业介绍，回答事实问题或写文案前使用。",

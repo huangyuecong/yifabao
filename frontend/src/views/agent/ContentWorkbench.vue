@@ -27,6 +27,7 @@ import { catalogApi } from '@/api/agent/catalog'
 import { contentApi } from '@/api/agent/content'
 import { isStandaloneMode } from '@/auth/workspaceMode'
 import { contentCreateViewKey, contentTaskViewKey } from '@/router/videoEditorRouteSession'
+import AssistantBall from './content/AssistantBall.vue'
 import ContentHomeView from './content/ContentHomeView.vue'
 import { normalizeStageKey } from './content/contentWorkflow'
 import { useLocalAccess } from './content/localAccess'
@@ -260,6 +261,8 @@ onBeforeUnmount(() => clearInterval(statusTimer))
         <ContentServicesView v-else />
       </keep-alive>
     </main>
+    <!-- The operations assistant floats over every page; AI 对话 is the same thing full-size. -->
+    <AssistantBall :hidden="currentView === 'chat'" />
   </div>
 </template>
 

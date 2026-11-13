@@ -36,7 +36,18 @@ from .llm_adapters import ProviderCallError
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="chat-create")
 _capacity = BoundedSemaphore(4)
 DOCUMENT_KINDS = {"doc", "docx", "pdf"}
-_TOOLS_BY_OUTPUT = {"text": "answer_in_chat", "image": "generate_image", "video": "generate_video"}
+_TOOLS_BY_OUTPUT = {
+    "text": "answer_in_chat",
+    "image": "generate_image",
+    "video": "generate_video",
+    "agent": "operate_workbench",
+}
+# Questions about the workbench's own data go to the operations assistant even when the
+# model router is unavailable.
+_WORKBENCH = (
+    r"发布记录|上架记录|宣传记录|发布情况|宣传情况|上架情况|发布了(?:什么|哪些|几)|"
+    r"商品库|内容库|生成与审核|待审核|审核进度|生成进度|工作台(?:概况|数据|情况)|运营助手"
+)
 _EDIT = r"修改|改写|重写|润色|整理|缩短|扩写|删掉|删除|去掉|增加|补充|替换|换成|换为|改成|改为|编辑|edit|modify"
 _REFERENCE = r"这个|这份|这张|该图|上[一面次].*|刚才|之前|前面|继续|再改|它|上述|that|previous"
 
@@ -56,6 +67,8 @@ def _analysis_only(content):
 
 
 def infer_output(content, attachments=()):
+    if not attachments and re.search(_WORKBENCH, content):
+        return "agent"
     if _analysis_only(content):
         return "text"
     if re.search(
@@ -324,7 +337,7 @@ def prepare_generation_request(store, owner, conversation_id, history, request):
             )
         if attachment_source["conversation_id"] != conversation_id:
             raise HTTPException(404, "参考附件不属于当前对话")
-    elif not attachments:
+    elif not attachments and inferred != "agent":
         reference_content = content
         if inferred in {"image", "video"} and _media_followup(history, content) == inferred:
             reference_content = "继续修改：" + content
@@ -617,6 +630,7 @@ def _run(
 ):
     aid = None
     trace = None
+    agent_files = []  # files the operations assistant created, removed again if the reply fails
     stop = Event()
     try:
         Thread(
@@ -653,7 +667,25 @@ def _run(
         elif output == "agent":
             from . import chat_agent
 
-            reply, trace = chat_agent.run(settings, model, history, identity, assistant_id)
+            def make_document(title, content, document_format):
+                document_id = identifier()
+                agent_files.append(document_id)
+                directory = artifact_directory(store, document_id)
+                directory.mkdir(parents=True, mode=0o700)
+                result = create_chat_document(
+                    directory, content=content, title=title, format=document_format
+                )
+                # Each file has its own directory, so the download can carry the plain title.
+                name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", title).strip(" .") or "运营助手文档"
+                result.update(kind=document_format, metadata={"text": content},
+                              name=f"{name}.{document_format}")
+                artifact = prepare_artifact(store, document_id, result)
+                artifacts.append(artifact)
+                return {"name": artifact["name"], "format": document_format.upper()}
+
+            reply, trace = chat_agent.run(
+                settings, model, history, identity, assistant_id, make_document=make_document
+            )
         else:
             document_text = document_conversion_source(history, request, reference_text, output)
             if document_text:
@@ -724,12 +756,14 @@ def _run(
                 artifacts=artifacts,
                 trace=trace,
             )
-            and aid
         ):
-            remove_artifact_directory(store, aid)
+            for file_id in [aid, *agent_files]:
+                if file_id:
+                    remove_artifact_directory(store, file_id)
     except (ProviderCallError, HTTPException, ChatDocumentError, ChatMediaError) as exc:
-        if aid:
-            remove_artifact_directory(store, aid)
+        for file_id in [aid, *agent_files]:
+            if file_id:
+                remove_artifact_directory(store, file_id)
         store.finish(
             conversation_id,
             operation_id,
@@ -737,8 +771,9 @@ def _run(
             error=str(exc.detail) if isinstance(exc, HTTPException) else str(exc),
         )
     except Exception:
-        if aid:
-            remove_artifact_directory(store, aid)
+        for file_id in [aid, *agent_files]:
+            if file_id:
+                remove_artifact_directory(store, file_id)
         store.finish(
             conversation_id,
             operation_id,

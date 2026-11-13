@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from agent_core import Identity
 
-from . import catalog_generation, catalog_publishing, db, demo_quota
+from . import catalog_generation, catalog_publishing, china_time, db, demo_quota
 from .access_control import get_content_identity as get_identity
 from .access_routes import PrivateAccessRoute
 from .ai_model_config import write_header
@@ -796,10 +796,20 @@ def publish_promotion(body: PromotionInput, identity: Identity = Depends(require
 @router.get("/records")
 def list_records(workflow: Literal["listing", "promotion"] | None = None, status: str | None = Query(None, max_length=64),
                  platform: str | None = Query(None, max_length=24), page: int = Query(1, ge=1),
-                 page_size: int = Query(30, ge=1, le=100), identity: Identity = Depends(get_identity),
+                 page_size: int = Query(30, ge=1, le=100),
+                 day: str | None = Query(None, max_length=10,
+                                         description="只看某一天（北京时间）：today、yesterday 或 YYYY-MM-DD"),
+                 identity: Identity = Depends(get_identity),
                  session: Session = Depends(db.get_session)):
     catalog_publishing.resume_pending(session, identity.user_id)
     query = select(PublishRecord).where(PublishRecord.owner_id == identity.user_id)
+    bounds = None
+    if day:
+        try:
+            bounds = china_time.day_bounds(china_time.parse_day(day))
+        except ValueError:
+            raise HTTPException(422, "day 只能是 today、yesterday 或 YYYY-MM-DD") from None
+        query = query.where(PublishRecord.created_at >= bounds[0], PublishRecord.created_at < bounds[1])
     if workflow:
         query = query.where(PublishRecord.workflow == workflow)
     if status:
@@ -814,7 +824,10 @@ def list_records(workflow: Literal["listing", "promotion"] | None = None, status
     counts_query = select(PublishRecord.status, func.count()).where(PublishRecord.owner_id == identity.user_id)
     if workflow:
         counts_query = counts_query.where(PublishRecord.workflow == workflow)
-    counts = dict(session.execute(counts_query.group_by(PublishRecord.status)).all())
+    if bounds:
+        counts_query = counts_query.where(PublishRecord.created_at >= bounds[0],
+                                          PublishRecord.created_at < bounds[1])
+    counts =dict(session.execute(counts_query.group_by(PublishRecord.status)).all())
     return {"items": [record_document(row, products.get(row.product_id)) for row in rows],
             "total": total, "counts": counts}
 

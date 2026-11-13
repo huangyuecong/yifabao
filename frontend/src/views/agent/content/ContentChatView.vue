@@ -11,7 +11,6 @@ import {
   Loading,
   Menu,
   Microphone,
-  Operation,
   Paperclip,
   Picture,
   Plus,
@@ -85,8 +84,6 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined
 let streamController: AbortController | undefined
 let streamingId = ''
 const liveReplies = reactive(new Map<string, { text: string, stage: string, plan: string[], steps: AgentStep[] }>())
-// Send to the operations-assistant Agent directly instead of letting the model choose.
-const agentMode = ref(false)
 // Voice input appends what is said to the text that was in the box when it started.
 let voiceBase = ''
 const {
@@ -909,7 +906,7 @@ async function send() {
     const response = await chatApi.send(id, {
       content: savedDraft.text.trim(),
       attachment_ids: savedDraft.files.flatMap(item => item.attachment ? [item.attachment.id] : []),
-      output: agentMode.value ? 'agent' : 'auto',
+      output: 'auto',
       reference_artifact_id: savedDraft.reference?.id,
     })
     adoptConversation(response)
@@ -1429,17 +1426,6 @@ onBeforeUnmount(() => {
                 添加附件
               </ElButton>
               <ElButton
-                text
-                :icon="Operation"
-                class="agent-toggle"
-                :class="{ 'is-active': agentMode }"
-                :aria-pressed="agentMode"
-                title="开启后直接交给运营助手：查询商品、审核和发布数据，发起生成，准备发布"
-                @click="agentMode = !agentMode"
-              >
-                运营助手
-              </ElButton>
-              <ElButton
                 v-if="voiceSupported"
                 text
                 :icon="Microphone"
@@ -1806,10 +1792,6 @@ onBeforeUnmount(() => {
 .voice-toggle.is-active {
   color: var(--xi-semantic-color-feedback-danger-text);
   background: var(--xi-semantic-color-feedback-danger-background-subtle);
-}
-.agent-toggle.is-active {
-  color: var(--xi-semantic-color-feedback-info-text);
-  background: var(--xi-semantic-color-feedback-info-background-subtle);
 }
 .routing-tag {
   display: inline-block;

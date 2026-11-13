@@ -13,14 +13,14 @@ import json
 import os
 import threading
 from contextvars import ContextVar
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
 
+from . import china_time
+
 visitor: ContextVar[str] = ContextVar("demo_visitor", default="")
 _lock = threading.Lock()
-_DAY_ZONE = timezone(timedelta(hours=8), "Asia/Shanghai")  # China time, no daylight saving
 _LOCAL_PROXIES = {"127.0.0.1", "::1"}
 
 
@@ -59,7 +59,7 @@ def _usage_path() -> Path:
 
 
 def _today() -> str:
-    return datetime.now(_DAY_ZONE).date().isoformat()
+    return china_time.today().isoformat()
 
 
 def _read(path: Path) -> dict:

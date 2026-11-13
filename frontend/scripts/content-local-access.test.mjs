@@ -282,7 +282,7 @@ moduleUrls['./content/contentWorkflow'] = dataModule('export const normalizeStag
 moduleUrls['./content/serviceStatusPresentation'] = dataModule('export const serviceStatusPresentation = () => ({ label: "可用", type: "success" });')
 moduleUrls['./content/localAccess'] = moduleUrls['./localAccess']
 moduleUrls['./content/reviewBadge'] = dataModule(`import { ref } from "${import.meta.resolve('vue')}"; export const pendingReviewCount = ref(0);`)
-for (const component of ['ContentHomeView', 'ContentAccessView', 'ContentAuditView', 'ContentLibraryView', 'ContentServicesView', 'ContentTaskView', 'ContentVersionsView', 'ContentAutomationView', 'ContentChatView', 'CatalogContentsView', 'CatalogProductsView', 'CatalogPublishView', 'CatalogRecordsView', 'CatalogReviewView']) {
+for (const component of ['AssistantBall', 'ContentHomeView', 'ContentAccessView', 'ContentAuditView', 'ContentLibraryView', 'ContentServicesView', 'ContentTaskView', 'ContentVersionsView', 'ContentAutomationView', 'ContentChatView', 'CatalogContentsView', 'CatalogProductsView', 'CatalogPublishView', 'CatalogRecordsView', 'CatalogReviewView']) {
   moduleUrls[`./content/${component}.vue`] = emptyComponent
 }
 async function compileView(path) {

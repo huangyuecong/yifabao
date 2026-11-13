@@ -251,3 +251,112 @@ def test_chat_routes_the_request_to_the_agent_and_saves_the_trace(catalog, setti
     assert question["routing"] == {"output": "agent", "tool": "operate_workbench", "method": "function_calling"}
     assert answer["status"] == "completed" and answer["content"].startswith("现在有 1 个商品")
     assert answer["agent"]["steps"][0]["summary"] == "商品 1 个，待审核 0 条，内容库 0 条"
+
+
+def publish_today_and_earlier(client, factory):
+    """One listing record published now and a copy dated three days ago."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from content_service.catalog_models import PublishRecord
+
+    product = create_product(client, "雅集酒（遇雅集）")
+    client.post(f"{BASE}/batches", headers=HEADERS, json={"product_ids": [product["id"]]})
+    response = client.post(f"{BASE}/publish/listing", headers=HEADERS, json={
+        "content_ids": approve_all(client), "location": "贵阳市", "condition": "全新", "shipping_fee": "0"})
+    assert response.status_code == 202, response.text
+    with factory() as session:
+        row = session.scalars(select(PublishRecord)).one()
+        old = PublishRecord(**{column.name: getattr(row, column.name)
+                               for column in PublishRecord.__table__.columns if column.name != "id"})
+        old.title, old.created_at = "三天前的记录", datetime.now(UTC).replace(tzinfo=None) - timedelta(days=3)
+        session.add(old)
+        session.commit()
+
+
+def test_publish_records_show_times_and_filter_by_day(catalog):  # noqa: F811
+    from content_service import china_time
+
+    client, _, factory = catalog
+    publish_today_and_earlier(client, factory)
+    everything = agent_tools.call(ALICE, "list_publish_records", {})["result"]
+    assert everything["total"] == 2
+    today = agent_tools.call(ALICE, "list_publish_records", {"day": "today"})["result"]
+    assert today["total"] == 1 and today["day"] == china_time.today().isoformat()
+    assert today["counts"] == {"succeeded": 1} and today["records"][0]["title"] != "三天前的记录"
+    assert today["records"][0]["created"].startswith(china_time.today().isoformat() + " ")
+    assert agent_tools.call(ALICE, "list_publish_records", {"day": "yesterday"})["result"]["total"] == 0
+    assert not agent_tools.call(ALICE, "list_publish_records", {"day": "上周"})["ok"]
+    # The page API takes the same filter.
+    assert client.get(f"{BASE}/records", params={"day": "today"}).json()["total"] == 1
+    assert client.get(f"{BASE}/records", params={"day": "13/11"}).status_code == 422
+
+
+def test_beijing_day_bounds():
+    from datetime import date, datetime
+
+    from content_service import china_time
+
+    start, end = china_time.day_bounds(date(2026, 11, 13))
+    assert start == datetime(2026, 11, 12, 16, 0) and end == datetime(2026, 11, 13, 16, 0)
+    assert china_time.format_time(datetime(2026, 11, 12, 16, 5)) == "2026-11-13 00:05"
+
+
+def test_one_message_queries_today_and_returns_a_document(catalog, settings, monkeypatch):  # noqa: F811
+    client, _, factory = catalog
+    publish_today_and_earlier(client, factory)
+
+    def write_report(payload):
+        records = json.loads(payload["messages"][-1]["content"])["result"]["records"]
+        table = "\n".join(f"| {row['product']} | {row['platform']} | {row['created']} |" for row in records)
+        return reply("整理成文档。", [("create_document", {
+            "title": "今日发布情况", "format": "docx",
+            "content": "# 今日发布情况\n\n| 商品 | 平台 | 时间 |\n|---|---|---|\n" + table})])
+
+    payloads = scripted_model(monkeypatch, [
+        reply("1. 查询今天的发布记录\n2. 整理成 Word\n先查今天的记录。",
+              [("list_publish_records", {"day": "today"})]),
+        write_report,
+        reply("今天共发布 1 条，已整理成 Word 文档。"),
+    ], router=reply(None, [("operate_workbench", {})]))
+    monkeypatch.setenv("CONTENT_CHAT_TOOL_ROUTING", "true")
+    monkeypatch.setattr(chat_generation._executor, "submit", lambda function, *args: function(*args))
+    monkeypatch.setattr(chat_routes, "get_runtime_settings", lambda: settings)
+    app = FastAPI()
+    app.include_router(chat_routes.router)
+    headers = {"X-User-Id": "alice", "X-User-Name": "Alice", "X-Roles": "admin"}
+    with TestClient(app) as chat:
+        conversation = chat.post("/api/v1/chat/conversations", headers=headers, json={}).json()
+        result = chat.post(f"/api/v1/chat/conversations/{conversation['id']}/messages", headers=headers,
+                           json={"content": "把今天的发布情况整理成 Word 给我"})
+        assert result.status_code == 200, result.text
+        saved = chat.get(f"/api/v1/chat/conversations/{conversation['id']}", headers=headers).json()
+        answer = saved["messages"][-1]
+        assert answer["status"] == "completed", answer
+        [document] = answer["artifacts"]
+        assert document["kind"] == "docx"
+        download = chat.get(f"/api/v1/chat/artifacts/{document['id']}/content", headers=headers)
+    assert download.status_code == 200 and download.content[:2] == b"PK"
+    assert [step["label"] for step in answer["agent"]["steps"]] == ["查看发布记录", "生成文档"]
+    assert answer["agent"]["steps"][1]["summary"] == "已生成「今日发布情况.docx」"
+    assert document["name"] == "今日发布情况.docx"
+    assert "今天是 " in payloads["loop"][0]["messages"][0]["content"]
+    assert "create_document" in {tool["function"]["name"] for tool in payloads["loop"][0]["tools"]}
+
+
+def test_agent_without_a_document_sink_reports_it():
+    assert chat_agent._document(None, {"title": "x", "content": "y"})["ok"] is False
+    made = chat_agent._document(lambda title, content, fmt: {"name": f"{title}.{fmt}"},
+                                {"title": "日报", "content": "正文", "format": "rtf"})
+    assert made == {"ok": True, "result": {"name": "日报.docx"}}
+
+
+@pytest.mark.parametrize("text", ["今天发布了什么", "看看今天的宣传情况，做成 Word", "内容库里有几条", "待审核的有哪些"])
+def test_rule_router_sends_workbench_questions_to_the_assistant(text):
+    assert chat_generation.infer_output(text) == "agent"
+
+
+def test_rule_router_keeps_ordinary_requests():
+    assert chat_generation.infer_output("写一段白酒宣传文案") == "text"
+    assert chat_generation.infer_output("生成一张海报图片") == "image"
