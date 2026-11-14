@@ -178,7 +178,7 @@ def record_document(row: PublishRecord, product: Product | None) -> dict:
         "product_name": product.name if product else "", "title": row.title,
         "price": money(row.price_cents), "shipping_fee": money(row.shipping_fee_cents),
         "condition": row.condition, "location": row.location, "category": row.category,
-        "account_label": row.account_label, "external_url": row.external_url, "external_id": row.external_id,
+        "account_label": row.account_label, "submitted_by": row.submitted_by, "external_url": row.external_url, "external_id": row.external_id,
         "error": row.error, "attempt": row.attempt, "created_at": row.created_at,
         "started_at": row.started_at, "finished_at": row.finished_at,
     }
@@ -727,6 +727,14 @@ class ListingInput(BaseModel):
         return clean(value)
 
 
+def _trial_user() -> str:
+    """On the online trial, the account submitting; its own server browser will publish."""
+    from . import trial_accounts
+
+    account = trial_accounts.current.get()
+    return account.username if account else ""
+
+
 @router.post("/publish/listing", status_code=202, dependencies=WRITE)
 def publish_listing(body: ListingInput, identity: Identity = Depends(require_publisher),
                     session: Session = Depends(db.get_session)):
@@ -746,6 +754,7 @@ def publish_listing(body: ListingInput, identity: Identity = Depends(require_pub
             platform="xianyu", title=(content.listing_title or content.title)[:30], price_cents=price_cents,
             shipping_fee_cents=to_cents(body.shipping_fee) or 0, condition=body.condition, location=body.location,
             category=XIANYU_CATEGORY, include_generated_images=body.include_generated_images,
+            submitted_by=_trial_user(),
         ))
     if problems:
         raise HTTPException(422, "；".join(problems[:6]))
@@ -782,7 +791,8 @@ def publish_promotion(body: PromotionInput, identity: Identity = Depends(require
                 problems.append(f"{product.name}：标题或正文超出{spec.label}字数限制")
                 continue
             records.append(PublishRecord(owner_id=identity.user_id, workflow="promotion", content_id=content.id,
-                                         product_id=product.id, platform=platform, title=content.title[:120]))
+                                         product_id=product.id, platform=platform, title=content.title[:120],
+                                         submitted_by=_trial_user()))
     if problems:
         raise HTTPException(422, "；".join(dict.fromkeys(problems[:6])))
     session.add_all(records)

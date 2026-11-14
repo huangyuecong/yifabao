@@ -114,10 +114,14 @@ test('preview components compile and keep their interaction guards', async () =>
   assert.match(source('src/views/agent/content/PromotionPhone.vue'), /onDeactivated\(\(\) => video\.value\?\.pause\(\)\)/)
 
   const view = source('src/views/agent/content/CatalogPublishView.vue')
-  // The preview belongs to the promotion workflow only.
-  assert.match(view, /<PromotionPreview\s+v-if="!isListing"/)
+  // This page is promotion only (闲鱼上架 has its own wizard), so the preview is always there.
+  assert.match(view, /<PromotionPreview\s/)
+  assert.doesNotMatch(source('src/views/agent/content/CatalogListingWizard.vue'), /PromotionPreview/)
   // The preview button must neither toggle the row's selection with the mouse nor with the space bar.
-  assert.match(view, /@click\.stop="focusId = content\.id"\s+@keydown\.space\.stop/)
+  assert.match(view, /@click\.stop="preview\(content\)"\s+@keydown\.space\.stop/)
+  // Only the eye button picks what is previewed: ticking rows never loads their videos.
+  assert.match(view, /const previewContent = computed\(\(\) => contents\.value\.find\(item => item\.id === focusId\.value\) \?\? null\)/)
+  assert.doesNotMatch(view.slice(view.indexOf('function toggle('), view.indexOf('function togglePage(')), /focusId/)
   // Copy the server would reject (422) is explained up front and blocks the submit button.
-  assert.match(view, /: platforms\.value\.length > 0 && !copyIssues\.value\.length/)
+  assert.match(view, /platforms\.value\.length > 0 && !copyIssues\.value\.length/)
 })

@@ -249,6 +249,11 @@ def _windows_arguments(command: str) -> list[str]:
 
 
 def _verify_dedicated_process(cdp_url: str, profile: Path) -> None:
+    from . import remote_browser
+
+    if remote_browser.enabled():
+        remote_browser.verify(cdp_url, profile)
+        return
     port = urlsplit(cdp_url).port
     rows = _listener_processes(port)
     if not rows:
@@ -288,6 +293,11 @@ def _browser_executable() -> Path:
 
 
 def _start_browser(cdp_url: str, profile: Path, url: str) -> None:
+    from . import remote_browser
+
+    if remote_browser.enabled():
+        remote_browser.start(cdp_url, profile, url)
+        return
     if os.name != "nt":
         raise _error(
             "browser_host_unsupported", "请在运行工作台的 Windows 电脑上打开专用发布浏览器。"

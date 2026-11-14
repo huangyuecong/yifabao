@@ -48,6 +48,11 @@ async def tag_visitor(request, call_next):
 
 
 def _exempt(key: str) -> bool:
+    from . import trial_accounts
+
+    account = trial_accounts.current.get()
+    if account is not None and account.is_owner:
+        return True  # the trial's admin accounts are never limited
     users = {item.strip() for item in os.getenv("CONTENT_DEMO_EXEMPT_USERS", "").split(",") if item.strip()}
     return bool(users) and key.split("@", 1)[0] in users
 

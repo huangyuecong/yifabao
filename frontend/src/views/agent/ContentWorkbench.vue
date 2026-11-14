@@ -25,6 +25,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 
 import { useRoute, useRouter } from 'vue-router'
 import { catalogApi } from '@/api/agent/catalog'
 import { contentApi } from '@/api/agent/content'
+import { loadTrialMe, trialMe } from '@/api/agent/trial'
 import { isStandaloneMode } from '@/auth/workspaceMode'
 import { contentCreateViewKey, contentTaskViewKey } from '@/router/videoEditorRouteSession'
 import AssistantBall from './content/AssistantBall.vue'
@@ -39,6 +40,7 @@ import './content/catalog.css'
 defineOptions({ name: 'ContentWorkbench' })
 // Pages load on first visit (code splitting); the home page stays in the shell chunk.
 const loadCatalogContentsView = () => import('./content/CatalogContentsView.vue')
+const loadCatalogListingWizard = () => import('./content/CatalogListingWizard.vue')
 const loadCatalogProductsView = () => import('./content/CatalogProductsView.vue')
 const loadCatalogPublishView = () => import('./content/CatalogPublishView.vue')
 const loadCatalogRecordsView = () => import('./content/CatalogRecordsView.vue')
@@ -51,7 +53,9 @@ const loadContentLibraryView = () => import('./content/ContentLibraryView.vue')
 const loadContentServicesView = () => import('./content/ContentServicesView.vue')
 const loadContentTaskView = () => import('./content/ContentTaskView.vue')
 const loadContentVersionsView = () => import('./content/ContentVersionsView.vue')
+const loadTrialAccountsView = () => import('./content/TrialAccountsView.vue')
 const CatalogContentsView = defineAsyncComponent(loadCatalogContentsView)
+const CatalogListingWizard = defineAsyncComponent(loadCatalogListingWizard)
 const CatalogProductsView = defineAsyncComponent(loadCatalogProductsView)
 const CatalogPublishView = defineAsyncComponent(loadCatalogPublishView)
 const CatalogRecordsView = defineAsyncComponent(loadCatalogRecordsView)
@@ -64,9 +68,10 @@ const ContentLibraryView = defineAsyncComponent(loadContentLibraryView)
 const ContentServicesView = defineAsyncComponent(loadContentServicesView)
 const ContentTaskView = defineAsyncComponent(loadContentTaskView)
 const ContentVersionsView = defineAsyncComponent(loadContentVersionsView)
+const TrialAccountsView = defineAsyncComponent(loadTrialAccountsView)
 
 type ContentView = 'home' | 'task' | 'chat' | 'library' | 'versions' | 'services' | 'access' | 'audit'
-  | 'automation' | 'products' | 'review' | 'contents' | 'publish' | 'records'
+  | 'automation' | 'products' | 'review' | 'contents' | 'publish' | 'records' | 'trial'
 
 interface NavItem { key: string, label: string, path: string, icon: Component, badge?: number }
 
@@ -81,17 +86,24 @@ const navOpen = ref(false)
 
 const currentView = computed<ContentView>(() => (route.meta.contentView as ContentView | undefined) ?? 'home')
 const automationPurpose = computed(() => route.meta.automationPurpose === 'promotion' ? 'promotion' : 'listing')
+// 上架记录 / 发布历史 are tabs of their module; the old /records page still lists everything.
+const recordsWorkflow = computed(() => route.meta.automationPurpose === 'promotion' || route.meta.automationPurpose === 'listing'
+  ? route.meta.automationPurpose
+  : undefined)
 const currentMode = computed<TaskMode>(() => (route.meta.contentMode as TaskMode | undefined) ?? 'full')
 const taskId = computed(() => (typeof route.params.taskId === 'string' ? route.params.taskId : ''))
 const stageKey = computed<StageKey>(() =>
   typeof route.params.stageKey === 'string' ? normalizeStageKey(route.params.stageKey) : 'configuration',
 )
 const currentNavKey = computed(() => {
-  if (currentView.value === 'publish' || currentView.value === 'automation') {
+  if (currentView.value === 'publish' || currentView.value === 'automation' || (currentView.value === 'records' && recordsWorkflow.value)) {
     return automationPurpose.value
   }
   if (currentView.value === 'task') {
     return `create-${currentMode.value}`
+  }
+  if (currentView.value === 'trial') {
+    return route.meta.trialTab === 'accounts' ? 'trial-accounts' : 'trial-operations'
   }
   return currentView.value
 })
@@ -110,7 +122,6 @@ const navGroups = computed<Array<{ title: string, items: NavItem[] }>>(() => [
       { key: 'contents', label: '内容库', path: '/agent/content/contents', icon: FolderOpened },
       { key: 'listing', label: '商品上架', path: '/agent/content/listing', icon: Sell },
       { key: 'promotion', label: '内容宣传', path: '/agent/content/promotion', icon: Promotion },
-      { key: 'records', label: '发布记录', path: '/agent/content/records', icon: Tickets },
     ],
   },
   {
@@ -129,8 +140,16 @@ const navGroups = computed<Array<{ title: string, items: NavItem[] }>>(() => [
       { key: 'library', label: '资料与素材', path: '/agent/content/library', icon: Collection },
       { key: 'versions', label: '历史任务', path: '/agent/content/versions', icon: Document },
       { key: 'services', label: '模型与服务', path: '/agent/content/services', icon: Monitor },
-      ...(!isStandaloneMode && canManageUsers.value ? [{ key: 'access', label: '人员与权限', path: '/agent/content/access', icon: User }] : []),
-      ...(hasPermission('audit.read') ? [{ key: 'audit', label: '操作记录', path: '/agent/content/audit', icon: Tickets }] : []),
+      // On the online trial, accounts and their operation log replace the enterprise pages.
+      ...(trialMe.value.enabled
+        ? [
+            ...(trialMe.value.is_owner ? [{ key: 'trial-accounts', label: '账号管理', path: '/agent/content/accounts', icon: User }] : []),
+            { key: 'trial-operations', label: '操作记录', path: '/agent/content/operations', icon: Tickets },
+          ]
+        : [
+            ...(!isStandaloneMode && canManageUsers.value ? [{ key: 'access', label: '人员与权限', path: '/agent/content/access', icon: User }] : []),
+            ...(hasPermission('audit.read') ? [{ key: 'audit', label: '操作记录', path: '/agent/content/audit', icon: Tickets }] : []),
+          ]),
     ],
   },
 ])
@@ -161,7 +180,7 @@ let statusTimer: ReturnType<typeof setInterval> | undefined
 // Warm the cache with the everyday pages once the browser is idle, so the first
 // switch to them is instant without putting them in the initial download.
 function prefetchPages() {
-  const pages = [loadCatalogProductsView, loadCatalogReviewView, loadCatalogContentsView, loadCatalogPublishView]
+  const pages = [loadCatalogProductsView, loadCatalogReviewView, loadCatalogContentsView, loadCatalogPublishView, loadCatalogListingWizard]
   const run = () => pages.forEach(load => void load().catch(() => {}))
   if ('requestIdleCallback' in window) {
     window.requestIdleCallback(run, { timeout: 4000 })
@@ -172,6 +191,7 @@ function prefetchPages() {
 }
 
 onMounted(() => {
+  void loadTrialMe()
   prefetchPages()
   void loadStatus()
   statusTimer = setInterval(() => void loadStatus(), 15000)
@@ -218,6 +238,11 @@ onBeforeUnmount(() => clearInterval(statusTimer))
           </button>
         </div>
       </nav>
+      <div v-if="trialMe.enabled" class="wb-account" :title="`当前登录：${trialMe.display_name}（${trialMe.username}）`">
+        <ElIcon><User /></ElIcon>
+        <span class="wb-ellipsis">{{ trialMe.display_name }}</span>
+        <small>{{ trialMe.is_owner ? '管理员' : '试用账号' }}</small>
+      </div>
       <div class="wb-sidebar-foot">
         <span class="wb-status" :class="`is-${statusPresentation.type || 'info'}`" :title="statusPresentation.label">
           <i />{{ statusPresentation.label }}
@@ -240,8 +265,9 @@ onBeforeUnmount(() => clearInterval(statusTimer))
         <CatalogProductsView v-else-if="currentView === 'products'" />
         <CatalogReviewView v-else-if="currentView === 'review'" />
         <CatalogContentsView v-else-if="currentView === 'contents'" />
-        <CatalogPublishView v-else-if="currentView === 'publish'" :key="automationPurpose" :workflow="automationPurpose" />
-        <CatalogRecordsView v-else-if="currentView === 'records'" />
+        <CatalogListingWizard v-else-if="currentView === 'publish' && automationPurpose === 'listing'" />
+        <CatalogPublishView v-else-if="currentView === 'publish'" />
+        <CatalogRecordsView v-else-if="currentView === 'records'" :key="recordsWorkflow || 'all'" :fixed="recordsWorkflow" />
         <ContentChatView v-else-if="currentView === 'chat'" />
         <ContentTaskView
           v-else-if="currentView === 'task'"
@@ -258,6 +284,7 @@ onBeforeUnmount(() => clearInterval(statusTimer))
         <ContentVersionsView v-else-if="currentView === 'versions'" />
         <ContentAccessView v-else-if="currentView === 'access'" />
         <ContentAuditView v-else-if="currentView === 'audit'" />
+        <TrialAccountsView v-else-if="currentView === 'trial'" />
         <ContentServicesView v-else />
       </keep-alive>
     </main>
@@ -372,6 +399,26 @@ onBeforeUnmount(() => clearInterval(statusTimer))
   background: var(--xi-semantic-color-action-primary-default);
   border-radius: 9px;
 }
+.wb-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 10px 8px;
+  padding: 8px 10px;
+  color: var(--xi-semantic-color-text-primary);
+  font-size: 13px;
+  background: var(--wb-hover);
+  border-radius: 4px;
+}
+.wb-account .el-icon {
+  color: var(--xi-semantic-color-text-tertiary);
+}
+.wb-account small {
+  margin-left: auto;
+  color: var(--xi-semantic-color-text-tertiary);
+  font-size: 12px;
+  white-space: nowrap;
+}
 .wb-sidebar-foot {
   display: flex;
   align-items: center;
@@ -474,6 +521,7 @@ onBeforeUnmount(() => clearInterval(statusTimer))
     background: var(--xi-semantic-color-text-secondary);
   }
   .wb-nav,
+  .wb-account,
   .wb-sidebar-foot {
     display: none;
   }

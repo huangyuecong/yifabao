@@ -31,7 +31,11 @@ TRANSITION = 0.0
 MAX_CLIPS = 6
 MIN_CLIP_SECONDS = 2.5
 FONT = Path(__file__).parent / "chat_fonts" / "NotoSansSC-Regular.ttf"
-SUBTITLE_STYLE = {"font_size": 12, "outline_width": 1.6, "shadow": 0.6, "alignment": 2, "margin_v": 48,
+# Short-video apps draw their own UI over the frame: status bar and 关注/推荐 tabs across the
+# top ~12%, and the account name, caption and music line over the bottom ~25%. The title
+# starts below the tabs and subtitles sit above the caption block so neither is covered.
+TITLE_TOP = 0.15
+SUBTITLE_STYLE = {"font_size": 12, "outline_width": 1.6, "shadow": 0.6, "alignment": 2, "margin_v": 84,
                   "bold": True, "primary_color": "#FFFFFF", "outline_color": "#111111"}
 
 
@@ -73,20 +77,20 @@ def _title_lines(draw, title: str, font, width: int) -> list[str]:
 
 
 def _frame(source: Path, target: Path, title: str) -> Path:
-    """2x-size still: darkened blurred fill, the whole photo, and the title in the top band."""
+    """2x-size still: darkened blurred fill, the whole photo, and the title under the app's top bar."""
     size = (WIDTH * 2, HEIGHT * 2)
     with Image.open(source) as image:
         image = ImageOps.exif_transpose(image).convert("RGB")
         background = ImageOps.fit(image, size).filter(ImageFilter.GaussianBlur(48))
         background = ImageEnhance.Brightness(background).enhance(0.55)
-        photo = ImageOps.contain(image, (int(size[0] * 0.9), int(size[1] * 0.6)))
+        photo = ImageOps.contain(image, (int(size[0] * 0.9), int(size[1] * 0.48)))
         left = (size[0] - photo.width) // 2
-        top = int(size[1] * 0.45) - photo.height // 2
-        background.paste(photo, (left, max(top, 40)))
+        top = int(size[1] * 0.5) - photo.height // 2
+        background.paste(photo, (left, max(top, int(size[1] * 0.25))))
     if title:
         draw = ImageDraw.Draw(background)
         font = ImageFont.truetype(str(FONT), 84)
-        y = int(size[1] * 0.06)
+        y = int(size[1] * TITLE_TOP)
         for line in _title_lines(draw, title, font, int(size[0] * 0.86)):
             x = (size[0] - draw.textlength(line, font=font)) / 2
             draw.text((x, y), line, font=font, fill="#ffffff", stroke_width=3, stroke_fill="#1d1d1d")
@@ -102,12 +106,12 @@ def _title_overlay(title: str, target: Path) -> Path:
     font = ImageFont.truetype(str(FONT), 42)
     lines = _title_lines(draw, title, font, int(WIDTH * 0.86))
     if lines:
-        band = Image.new("RGBA", (WIDTH, 60 + 56 * len(lines)), (0, 0, 0, 0))
+        y = int(HEIGHT * TITLE_TOP)
+        band = Image.new("RGBA", (WIDTH, 56 * len(lines) + 64), (0, 0, 0, 0))
         band_draw = ImageDraw.Draw(band)
-        for row in range(band.height):  # soft dark fade so the title reads on bright footage
-            band_draw.line([(0, row), (WIDTH, row)], fill=(0, 0, 0, int(110 * (1 - row / band.height))))
-        overlay.alpha_composite(band)
-        y = int(HEIGHT * 0.06)
+        for row in range(band.height):  # soft dark band behind the title so it reads on bright footage
+            band_draw.line([(0, row), (WIDTH, row)], fill=(0, 0, 0, int(110 * math.sin(math.pi * row / band.height))))
+        overlay.alpha_composite(band, (0, y - 32))
         for line in lines:
             x = (WIDTH - draw.textlength(line, font=font)) / 2
             draw.text((x, y), line, font=font, fill="#ffffff", stroke_width=2, stroke_fill="#1d1d1d")

@@ -15,7 +15,7 @@ from uuid import uuid4
 
 from sqlalchemy import select, update
 
-from . import db
+from . import db, remote_browser
 from .automation_platforms import get_platform
 from .catalog_media import absolute, new_work_dir, product_image_path, save_jpeg
 from .catalog_models import ContentMedia, Product, ProductContent, ProductImage, PublishRecord
@@ -130,7 +130,10 @@ def run_record(record_id: str) -> None:
             else:
                 payload = _promotion_payload(session, content)
             platform = record.platform
+            submitted_by = record.submitted_by or None
         get_platform(platform)
+        # Online trial: publish with the submitting account's own browser and logins.
+        remote_browser.task_owner.set(submitted_by)
 
         def before_submit():
             nonlocal submitted

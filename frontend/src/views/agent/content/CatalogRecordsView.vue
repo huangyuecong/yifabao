@@ -6,11 +6,14 @@ import { computed, onActivated, onDeactivated, ref } from 'vue'
 import { catalogApi, platformLabels, recordStatusLabels } from '@/api/agent/catalog'
 import { platformInitial, platformName, recordStatusClass, shortTime, yuan } from './catalogPresentation'
 import { friendlyContentError } from './contentWorkflow'
+import ModuleTabs from './ModuleTabs.vue'
 import WbPagination from './WbPagination.vue'
 
 defineOptions({ name: 'CatalogRecordsView' })
+/* With `fixed` set this is the 上架记录 / 发布历史 tab of one module; without it, every record. */
+const props = defineProps<{ fixed?: Workflow }>()
 
-const workflow = ref<Workflow | ''>('')
+const workflow = ref<Workflow | ''>(props.fixed ?? '')
 const status = ref<RecordStatus | 'active' | ''>('')
 const platform = ref<PublishPlatform | ''>('')
 const records = ref<PublishRecord[]>([])
@@ -23,6 +26,7 @@ const resolving = ref<PublishRecord | null>(null)
 const resolveUrl = ref('')
 const busy = ref('')
 
+const promotionPlatforms: PublishPlatform[] = ['douyin', 'xiaohongshu', 'kuaishou']
 const statusTabs: Array<{ key: RecordStatus | 'active' | '', label: string }> = [
   { key: '', label: '全部' },
   { key: 'succeeded', label: '成功' },
@@ -114,7 +118,26 @@ onDeactivated(() => clearInterval(timer))
 
 <template>
   <div class="wb-page">
-    <header class="wb-page-head">
+    <ModuleTabs v-if="fixed" :workflow="fixed">
+      <ElSelect
+        v-if="fixed === 'promotion'"
+        v-model="platform"
+        placeholder="全部平台"
+        clearable
+        size="small"
+        class="filter"
+        @change="reload"
+      >
+        <ElOption
+          v-for="key in promotionPlatforms"
+          :key="key"
+          :value="key"
+          :label="platformLabels[key]"
+        />
+      </ElSelect>
+      <ElButton :icon="Refresh" size="small" @click="load()">刷新</ElButton>
+    </ModuleTabs>
+    <header v-else class="wb-page-head">
       <div>
         <h1>发布记录</h1>
         <p>每次上架或宣传的执行结果。「待核查」表示已点击发布但没拿到平台回执，请到平台确认后标记。</p>
@@ -161,6 +184,8 @@ onDeactivated(() => clearInterval(timer))
             {{ tab.label }}<small>{{ tabCount(tab.key) }}</small>
           </button>
         </div>
+        <span class="wb-spacer" />
+        <small v-if="fixed" class="wb-muted">「待核查」表示已点发布但没拿到平台回执，请到平台确认后标记。</small>
       </div>
       <ElTable
         v-loading="loading"
@@ -169,7 +194,7 @@ onDeactivated(() => clearInterval(timer))
         empty-text="暂无记录"
         class="record-table"
       >
-        <ElTableColumn label="平台" width="100">
+        <ElTableColumn v-if="fixed !== 'listing'" label="平台" width="100">
           <template #default="{ row }">
             <span class="wb-platform" :class="`p-${row.platform}`"><i>{{ platformInitial[row.platform as PublishPlatform] }}</i>{{ platformName(row.platform) }}</span>
           </template>
@@ -187,7 +212,12 @@ onDeactivated(() => clearInterval(timer))
             <span class="wb-pill" :class="recordStatusClass(row.status)">{{ recordStatusLabels[row.status as RecordStatus] }}</span>
           </template>
         </ElTableColumn>
-        <ElTableColumn label="售价" width="96" align="right">
+        <ElTableColumn
+          v-if="fixed !== 'promotion'"
+          label="售价"
+          width="96"
+          align="right"
+        >
           <template #default="{ row }">
             <span class="wb-num" :class="{ 'wb-muted': row.workflow !== 'listing' }">{{ row.workflow === 'listing' ? yuan(row.price) : '—' }}</span>
           </template>

@@ -9,10 +9,16 @@ from . import automation_browser_session as sessions
 from .access_routes import PrivateAccessRoute
 from .ai_model_config import write_header
 from .automation_routes import require_publisher
+from .remote_browser import enabled as remote_browser_enabled
+from .remote_browser import require_trial_account
 from .standalone_access import require_local_request
 
 
 def local_browser_access(request: Request, _identity=Depends(require_publisher)):
+    if remote_browser_enabled():
+        # Online trial: the browser runs on the server, one per signed-in trial account.
+        require_trial_account()
+        return
     require_local_request(request)
 
 

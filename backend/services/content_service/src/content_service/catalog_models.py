@@ -172,6 +172,8 @@ class PublishRecord(Base):
     category: Mapped[str] = mapped_column(String(64), default="")
     include_generated_images: Mapped[bool] = mapped_column(Boolean, default=False)
     account_label: Mapped[str] = mapped_column(String(120), default="")
+    # Online trial: the trial account that submitted it; its own server browser publishes it.
+    submitted_by: Mapped[str] = mapped_column(String(64), default="")
     external_url: Mapped[str] = mapped_column(String(1024), default="")
     external_id: Mapped[str] = mapped_column(String(128), default="")
     error: Mapped[str] = mapped_column(String(500), default="")

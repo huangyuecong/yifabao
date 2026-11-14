@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { AutomationPurpose, BrowserPlatformSession } from '@/api/agent/automation'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onActivated, onBeforeUnmount, onDeactivated, ref } from 'vue'
 import { automationApi } from '@/api/agent/automation'
+import { remoteLoginApi, trialMe } from '@/api/agent/trial'
+import RemoteLoginDialog from './RemoteLoginDialog.vue'
 
 const props = withDefaults(defineProps<{ enabled: boolean, purpose?: AutomationPurpose }>(), { purpose: 'promotion' })
 const emit = defineEmits<{ updated: [session: BrowserPlatformSession] }>()
@@ -16,6 +19,10 @@ const labels = { not_opened: '待打开', login_required: '待登录', logged_in
 const sessions = ref<Partial<Record<BrowserPlatformSession['platform'], BrowserPlatformSession>>>({})
 const pending = ref('')
 const notices = ref<Partial<Record<BrowserPlatformSession['platform'], string>>>({})
+// Online trial: the browser is on the server, so logging in shows its screen here instead.
+const remote = computed(() => !!trialMe.value.remote_browser)
+const remoteFor = ref<BrowserPlatformSession['platform'] | ''>('')
+const remoteLabel = computed(() => platforms.value.find(item => item.id === remoteFor.value)?.label ?? '')
 let revision = 0
 let active = true
 const requestVersions: Record<BrowserPlatformSession['platform'], number> = { xianyu: 0, douyin: 0, xiaohongshu: 0, kuaishou: 0 }
@@ -60,8 +67,32 @@ async function load() {
     }
   }
 }
+async function forgetLogins() {
+  try {
+    await ElMessageBox.confirm('关闭服务器上你的发布浏览器，并删除你在闲鱼、抖音、小红书、快手的登录信息？之后需要重新扫码。', '清除平台登录', {
+      type: 'warning',
+      confirmButtonText: '清除',
+      cancelButtonText: '取消',
+    })
+  }
+  catch {
+    return
+  }
+  try {
+    await remoteLoginApi.forget()
+    ElMessage.success('已清除服务器上的平台登录')
+    void load()
+  }
+  catch (value) {
+    ElMessage.error(value instanceof Error ? value.message : '清除失败')
+  }
+}
 async function operate(platform: BrowserPlatformSession['platform'], operation: 'login' | 'publish' | 'inspect') {
   if (!active || !props.enabled || pending.value) {
+    return
+  }
+  if (remote.value && operation === 'login') {
+    remoteFor.value = platform
     return
   }
   const current = revision
@@ -108,7 +139,9 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="browser-connections" aria-label="网页版平台登录">
-    <div class="browser-heading"><strong>网页登录与发布</strong><span>登录状态保留在专用浏览器中</span></div>
+    <div class="browser-heading">
+      <strong>网页登录与发布</strong><span>{{ remote ? '在线试用：用手机扫服务器浏览器里的二维码登录，登录信息只属于你的试用账号' : '登录状态保留在专用浏览器中' }}</span>
+    </div>
     <article v-for="platform in platforms" :key="platform.id" class="browser-platform">
       <div class="platform-summary">
         <strong>{{ platform.label }}</strong>
@@ -116,13 +149,34 @@ onBeforeUnmount(() => {
         <span v-if="sessions[platform.id]?.state === 'logged_in'">{{ sessions[platform.id]?.account_label || '已检测到登录账号' }}</span>
       </div>
       <div class="browser-actions">
-        <ElButton :disabled="!enabled || !!pending" :loading="pending === `${platform.id}:login`" @click="operate(platform.id, 'login')">打开{{ platform.label }}登录</ElButton>
+        <ElButton :disabled="!enabled || !!pending" :loading="pending === `${platform.id}:login`" @click="operate(platform.id, 'login')">{{ remote ? `扫码登录${platform.label}` : `打开${platform.label}登录` }}</ElButton>
         <ElButton :disabled="!enabled || !!pending" :loading="pending === `${platform.id}:inspect`" @click="operate(platform.id, 'inspect')">检测登录</ElButton>
-        <ElButton :disabled="!enabled || !!pending" :loading="pending === `${platform.id}:publish`" @click="operate(platform.id, 'publish')">打开发布页</ElButton>
+        <ElButton
+          v-if="!remote"
+          :disabled="!enabled || !!pending"
+          :loading="pending === `${platform.id}:publish`"
+          @click="operate(platform.id, 'publish')"
+        >
+          打开发布页
+        </ElButton>
       </div>
       <p v-if="notices[platform.id]" role="status">{{ notices[platform.id] }}</p>
       <p v-if="sessions[platform.id]?.state === 'logged_in' && !sessions[platform.id]?.publish_ready" class="publish-note">账号已连接，自动发布仍需完成平台适配。</p>
     </article>
+    <ElButton
+      v-if="remote"
+      link
+      class="forget"
+      @click="forgetLogins"
+    >
+      清除我在服务器上的平台登录
+    </ElButton>
+    <RemoteLoginDialog
+      :platform="remoteFor"
+      :label="remoteLabel"
+      @updated="update"
+      @close="remoteFor = ''"
+    />
   </section>
 </template>
 
@@ -164,5 +218,9 @@ onBeforeUnmount(() => {
 }
 .browser-platform p {
   margin: 10px 0 0;
+}
+.forget {
+  justify-self: start;
+  font-size: 12px;
 }
 </style>

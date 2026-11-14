@@ -4079,38 +4079,49 @@ onBeforeUnmount(() => {
   font-size: var(--xi-semantic-typography-caption-font-size);
 }
 
+/* Steps run across the top (完整流程 and the other creation tools share this view),
+ * so the stage content gets the full page width. */
 .workflow-layout {
   display: grid;
-  grid-template-columns: var(--xi-component-content-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--xi-component-content-gap-md);
 }
 
 .stage-navigation {
   display: grid;
-  overflow: hidden;
+  overflow-x: auto;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   background: var(--xi-semantic-color-background-container);
   border: var(--xi-component-content-border);
   border-radius: var(--xi-component-content-radius-card);
 }
 
 .stage-navigation button {
+  position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--xi-component-content-gap-xs);
+  min-width: 0;
   padding: var(--xi-component-content-gap-sm);
   color: var(--xi-semantic-color-text-secondary);
   font: inherit;
   text-align: left;
   background: var(--xi-semantic-color-background-container);
   border: 0;
-  border-bottom: var(--xi-component-content-border);
+  border-right: var(--xi-component-content-border);
   cursor: pointer;
 }
 
 .stage-navigation button:last-child {
-  border-bottom: 0;
+  border-right: 0;
+}
+
+/* The state is already written under the step name. */
+.stage-navigation button > .el-tag {
+  display: none;
 }
 
 .stage-navigation button:disabled {
@@ -4130,7 +4141,7 @@ onBeforeUnmount(() => {
 }
 
 .stage-navigation button.active {
-  border-left: var(--xi-component-content-focus-width) solid var(--xi-semantic-color-border-brand-default);
+  box-shadow: inset 0 calc(-1 * var(--xi-component-content-focus-width)) 0 var(--xi-semantic-color-border-brand-default);
 }
 
 .stage-number {
@@ -4152,6 +4163,13 @@ onBeforeUnmount(() => {
   min-width: 0;
   flex-direction: column;
   gap: var(--xi-component-content-gap-xxs);
+}
+
+.stage-name strong,
+.stage-name small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .stage-name small {
@@ -4398,6 +4416,10 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
+  .stage-navigation {
+    grid-auto-columns: minmax(128px, 1fr);
+  }
+
   .image-revision-panel {
     grid-template-columns: 1fr;
   }

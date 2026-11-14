@@ -35,6 +35,7 @@ from sqlalchemy.orm import Session, object_session
 from agent_core import Identity, install_request_context
 from agent_core.web import install_cors, install_utc_datetime_responses
 
+from . import remote_browser, trial_accounts
 from .access_control import can_view_all_tasks, has_permission
 from .access_control import get_content_identity as get_identity
 from .access_routes import router as local_access_router
@@ -760,6 +761,7 @@ install_request_context(app, "content-service")
 install_cors(app, "CONTENT_CORS_ORIGINS")
 install_utc_datetime_responses(app)
 app.middleware("http")(demo_tag_visitor)  # online trial: per-visitor video allowance
+app.middleware("http")(trial_accounts.guard)  # online trial: every request needs a trial account
 
 app.include_router(ai_model_configuration_router)
 app.include_router(local_access_router)
@@ -770,6 +772,8 @@ app.include_router(browser_session_router)
 app.include_router(android_router)
 app.include_router(catalog_router)
 app.include_router(mcp_router)
+app.include_router(trial_accounts.router)
+app.include_router(remote_browser.router)
 
 @app.exception_handler(ArchiveUnavailableError)
 async def original_unavailable_handler(request, exc):

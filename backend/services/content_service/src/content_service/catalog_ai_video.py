@@ -24,13 +24,29 @@ logger = logging.getLogger(__name__)
 CLIP_SECONDS = 5
 POLL_SECONDS = 10
 DEADLINE_SECONDS = 15 * 60
+# Image-to-video shots, one per clip. Small, slow camera moves keep the model from
+# redrawing the product; each shot shows a different side of it so the cut reads as an ad.
 SHOTS = (
-    "镜头缓慢推近商品主体，柔和暖光掠过瓶身，突出整体造型与质感",
-    "镜头沿水平方向缓慢平移，展示瓶身纹饰与包装细节，光影轻微流动",
-    "镜头缓慢拉远，呈现商品与包装的完整陈列，氛围沉稳高级",
+    "镜头从中景极缓慢推近，最后停在商品正面；一束柔和侧光从左向右轻轻扫过，表面质感和高光逐渐清晰",
+    "镜头围绕商品做小幅度弧形环绕（不超过 15 度），背景虚化，光斑缓慢流动，展示侧面轮廓与包装细节",
+    "商品保持静止，镜头先微微上移再缓慢拉远，呈现商品与包装的完整陈列，暖色氛围光逐渐亮起",
 )
-GUARD = ("以画面中的商品为绝对主体，严格保持瓶型、颜色、包装结构、品牌标识和标签文字与原图一致，"
-         "不替换、不变形，不新增任何文字、字幕或水印；不出现人物；画面稳定不晃动。")
+STYLE = "高端商业广告质感，电影级布光，浅景深，色彩干净自然，镜头运动平稳匀速、节奏舒缓。"
+GUARD = ("商品是唯一主体，始终完整出现在画面中部；画面上方约 15%、下方约 25% 不放商品关键部位（会被平台标题和界面遮挡）。"
+         "严格保持商品的形状、比例、颜色、材质、包装结构、品牌标识和标签文字与原图完全一致，不变形、不替换、不增减部件；"
+         "不新增任何文字、字幕、水印或 Logo；不出现人物、手或动物；不开盖、不倾倒、不燃烧、不爆炸、不快速旋转；"
+         "画面稳定，不抖动、不闪烁。")
+BOTTLE = "瓶身玻璃与金属部件的反光真实自然，瓶内液体保持静止。"
+
+
+def shot_prompt(product_name: str, index: int, instructions: str = "") -> str:
+    """The prompt for clip ``index`` of a product (the first frame is the product picture)."""
+    prompt = f"{product_name}。{SHOTS[index % len(SHOTS)]}。{STYLE}{GUARD}"
+    if re.search(r"酒|瓶|饮|露|水", product_name):
+        prompt += BOTTLE
+    if instructions:
+        prompt += f"补充要求：{instructions[:300]}"
+    return prompt
 
 
 @dataclass
@@ -71,9 +87,7 @@ def generate_ai_clips(images: list[Path], product_name: str, instructions: str, 
         return result
     submitted = []
     for index in range(count):
-        prompt = f"{product_name}。{SHOTS[index % len(SHOTS)]}。{GUARD}"
-        if instructions:
-            prompt += f"补充要求：{instructions[:300]}"
+        prompt = shot_prompt(product_name, index, instructions)
         try:
             task = port.submit(AiVideoGenerationRequest(
                 prompt=prompt, image_url=_data_url(images[index % len(images)]), duration_seconds=CLIP_SECONDS,

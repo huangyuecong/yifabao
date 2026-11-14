@@ -55,7 +55,7 @@ const overflowing = computed(() => Object.fromEntries(previewPlatforms.map(platf
       </div>
     </div>
 
-    <div v-if="!content" class="wb-empty">选择一条内容，这里会显示它发布到抖音、小红书、快手后的样子。</div>
+    <div v-if="!content" class="wb-empty">点内容右侧的小眼睛，这里会显示它发布到抖音、小红书、快手后的样子。</div>
     <div v-else class="wb-panel-body preview-body">
       <div class="wb-tabs" role="tablist">
         <button

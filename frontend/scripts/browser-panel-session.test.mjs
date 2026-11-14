@@ -16,6 +16,10 @@ globalThis.__browserPanelTest = { call: (method, ...args) => api[method](...args
 const modules = {
   'vue': import.meta.resolve('vue'),
   '@/api/agent/automation': dataModule(`export const automationApi = Object.fromEntries(['browserSessions', 'openBrowser', 'inspectBrowser'].map(method => [method, (...args) => globalThis.__browserPanelTest.call(method, ...args)]));`),
+  // Online-trial pieces: off here (no remote browser), so the local behaviour is what is tested.
+  'element-plus': dataModule(`export const ElMessage = { success() {}, error() {} }; export const ElMessageBox = { confirm: async () => {} };`),
+  '@/api/agent/trial': dataModule(`import { ref } from '${import.meta.resolve('vue')}'; export const trialMe = ref({ enabled: false }); export const remoteLoginApi = {};`),
+  './RemoteLoginDialog.vue': dataModule(`export default { name: 'RemoteLoginDialog', render: () => null }`),
 }
 const replaced = compiled.content.replace(/from\s+(['"])([^'"]+)\1/gu, (match, quote, specifier) => {
   assert.ok(modules[specifier], `Unexpected import: ${specifier}`)
@@ -161,10 +165,10 @@ test('all promotion platforms offer web login and publish pages without claiming
     for (const label of ['抖音', '小红书', '快手']) {
       assert.ok(view.button(`打开${label}登录`))
     }
-    assert.equal(view.all('ElButton').filter(item => textOf(item) === '打开发布页').length, 3)
+    assert.equal(view.all('ElButton').filter(item => textOf(item).trim() === '打开发布页').length, 3)
     await view.button('打开小红书登录').props.onClick()
     await settle()
-    await view.all('ElButton').filter(item => textOf(item) === '打开发布页')[2].props.onClick()
+    await view.all('ElButton').filter(item => textOf(item).trim() === '打开发布页')[2].props.onClick()
     await settle()
     assert.deepEqual(calls, [['xiaohongshu', 'login'], ['kuaishou', 'publish']])
     assert.equal(observed.some(item => item.state === 'logged_in'), false)

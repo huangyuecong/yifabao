@@ -95,6 +95,12 @@ def _config_path() -> Path:
 
 
 def _load_config() -> dict[str, Any]:
+    from . import remote_browser
+
+    # On the online trial each trial account has its own server-side browser.
+    override = remote_browser.config_override()
+    if override is not None:
+        return override
     path = _config_path()
     if not path.is_file():
         raise _blocked("config_missing", "尚未设置本机浏览器发布配置。")

@@ -34,6 +34,18 @@ const contentAgentRoutes: RouteRecordRaw[] = [
     meta: { title: '内容宣传', hidden: true, canTo: true, noCache: false, contentView: 'publish', automationPurpose: 'promotion' },
   },
   {
+    path: 'content/listing/records',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentListingRecords',
+    meta: { title: '上架记录', hidden: true, canTo: true, noCache: false, contentView: 'records', automationPurpose: 'listing' },
+  },
+  {
+    path: 'content/promotion/records',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentPromotionRecords',
+    meta: { title: '发布历史', hidden: true, canTo: true, noCache: false, contentView: 'records', automationPurpose: 'promotion' },
+  },
+  {
     path: 'content/records',
     component: () => import('@/views/agent/ContentWorkbench.vue'),
     name: 'ContentAgentRecords',
@@ -63,6 +75,19 @@ const contentAgentRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/agent/ContentWorkbench.vue'),
     name: 'ContentAgentAccess',
     meta: { title: '人员与权限', hidden: true, canTo: true, noCache: false, contentView: 'access' },
+  },
+  {
+    // Online trial only: accounts (owner) and each account's operations.
+    path: 'content/accounts',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentTrialAccounts',
+    meta: { title: '账号管理', hidden: true, canTo: true, noCache: false, contentView: 'trial', trialTab: 'accounts' },
+  },
+  {
+    path: 'content/operations',
+    component: () => import('@/views/agent/ContentWorkbench.vue'),
+    name: 'ContentAgentTrialOperations',
+    meta: { title: '操作记录', hidden: true, canTo: true, noCache: false, contentView: 'trial', trialTab: 'operations' },
   },
   {
     path: 'content/audit',
