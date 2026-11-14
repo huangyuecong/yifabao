@@ -1,6 +1,7 @@
 """Database construction without loading application settings or opening a connection."""
 
 import os
+import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
 from types import MethodType
@@ -35,7 +36,10 @@ def database_options(url: str, environ: Mapping[str, str] | None = None) -> dict
         raise ValueError("Database URL and CONTENT_DATABASE_BACKEND differ; explicitly select dm")
     options = {"pool_pre_ping": True, "hide_parameters": True}
     if backend == "sqlite":
-        options["connect_args"] = {"check_same_thread": False}
+        # SQLite allows one writer at a time. Wait for it (the default is 5 s)
+        # instead of failing another user's save with "database is locked".
+        busy = _integer(values, "CONTENT_SQLITE_BUSY_SECONDS", 30)
+        options["connect_args"] = {"check_same_thread": False, "timeout": busy}
         return options
     if parsed.drivername != "dm+dmPython" or not parsed.host or not parsed.username:
         raise ValueError("Dameng requires dm+dmPython URL with user and host (or service name)")
@@ -85,6 +89,18 @@ def create_database_engine(url: str, environ: Mapping[str, str] | None = None, *
     try:
         engine = create_engine(url, **options)
         values = os.environ if environ is None else environ
+        if engine.dialect.name == "sqlite" and make_url(url).database not in {None, "", ":memory:"}:
+            # WAL lets pages keep reading while another request is writing.
+            @event.listens_for(engine, "connect")
+            def use_wal(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                try:
+                    cursor.execute("PRAGMA journal_mode=WAL")
+                except sqlite3.OperationalError:
+                    pass  # read-only snapshots cannot change the journal mode; keep theirs
+                finally:
+                    cursor.close()
+
         if engine.dialect.name == "dm":
             _configure_dm_batch_inserts(engine)
             # dmSQLAlchemy 2.0.17's bulk constraint query uses USER_CONSTRAINTS

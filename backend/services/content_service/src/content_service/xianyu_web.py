@@ -1,6 +1,7 @@
 """Xianyu's observed web form. Every listing uses 其他闲置; never guess an address."""
 
 import re
+import time
 from contextlib import suppress
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -15,6 +16,9 @@ EDITOR = '[contenteditable="true"]'
 IMAGES = '[aria-roledescription="sortable"]'
 ADDRESS = '.ant-form-item:has(label[title="宝贝所在地"]) [class^="address--"]'
 UNSUPPORTED = "网页版暂不支持发布此分类"
+# Xianyu rebuilds the category list as it recognises the photos; until then it only
+# offers guesses from the text, which may not include 其他闲置.
+CATEGORY_WAIT_SECONDS = 45
 # Xianyu suggests categories from the photos (e.g. 国产白酒), many of which the
 # web form refuses. 其他闲置 is always offered and accepted, so every listing uses it.
 CATEGORY = "其他闲置"
@@ -102,6 +106,29 @@ def guard(page, *, category=True):
             _block("verification_required", "闲鱼要求验证身份，请点击“打开发布页”完成验证后重试。")
 
 
+def _category_option(page, field, category):
+    """Open the category list and scroll it until `category` is rendered (or the list ends)."""
+    field.locator('.ant-select-selector').click()
+    dropdown = page.locator('.ant-select-dropdown:visible').last
+    option = dropdown.locator('.ant-select-item-option-content').filter(has_text=re.compile('^' + re.escape(category) + '$'))
+    holder = dropdown.locator('.rc-virtual-list-holder').first
+    with suppress(Exception):
+        # A reopened list keeps its old scroll position, where a shorter rebuilt
+        # list renders no rows at all; start again from the top.
+        holder.wait_for(timeout=5000)
+        holder.evaluate('e => { e.scrollTop = 0 }')
+    with suppress(Exception):
+        dropdown.locator('.ant-select-item-option-content').first.wait_for(timeout=5000)
+        # The list is virtual: only ~10 rows are rendered, and 其他闲置 is
+        # usually last. Scroll until it is rendered or the list ends.
+        while not option.count() and holder.count():
+            moved = holder.evaluate('e => { const top = e.scrollTop; e.scrollTop += e.clientHeight; return e.scrollTop !== top }')
+            if not moved:
+                break
+            page.wait_for_timeout(150)
+    return option
+
+
 def _select_category(page, category):
     from playwright.sync_api import expect
 
@@ -109,23 +136,18 @@ def _select_category(page, category):
     field.locator('.ant-select-selection-item').wait_for(timeout=30_000)
     selected = field.locator('.ant-select-selection-item')
     if selected.inner_text().strip() != category:
-        field.locator('.ant-select-selector').click()
-        dropdown = page.locator('.ant-select-dropdown:visible')
-        option = dropdown.locator('.ant-select-item-option-content').filter(has_text=re.compile('^' + re.escape(category) + '$'))
-        try:
-            dropdown.locator('.ant-select-item-option-content').first.wait_for(timeout=5000)
-            # The list is virtual: only ~10 rows are rendered, and 其他闲置 is
-            # usually last. Scroll until it is rendered or the list ends.
-            holder = dropdown.locator('.rc-virtual-list-holder')
-            while not option.count() and holder.count():
-                moved = holder.evaluate('e => { const top = e.scrollTop; e.scrollTop += e.clientHeight; return e.scrollTop !== top }')
-                if not moved:
-                    break
-                page.wait_for_timeout(150)
-        except Exception:
-            pass
-        if option.count() != 1:
-            _block("category_unavailable", f"闲鱼当前可选分类中没有“{category}”，未提交商品。")
+        deadline = time.monotonic() + CATEGORY_WAIT_SECONDS
+        while True:
+            option = _category_option(page, field, category)
+            if option.count() == 1:
+                break
+            # Not offered yet: close the list and look again once Xianyu has
+            # finished recognising the photos.
+            with suppress(Exception):
+                page.keyboard.press('Escape')
+            if time.monotonic() >= deadline:
+                _block("category_unavailable", f"闲鱼当前可选分类中没有“{category}”，未提交商品。")
+            page.wait_for_timeout(2000)
         option.click()
     try:
         # The page only shows the new category after its h5api request answers.
@@ -306,8 +328,9 @@ def prepare_page(page, payload):
         _block('editor_not_empty', '发布页已有内容，为避免覆盖，请使用新的商品发布页。')
     page.locator('input[type="file"]').set_input_files(payload['image_paths'])
     page.locator(EDITOR).fill(payload['web_description'])
-    _select_category(page, payload['category'])
+    # Choose the category only after the photos are in: Xianyu builds the list from them.
     _images_ready(page, len(payload['image_paths']))
+    _select_category(page, payload['category'])
     _field(page, '价格').locator('input').fill(payload['price'])
     page.get_by_role('radio', name='包邮' if Decimal(payload['shipping_fee']) == 0 else '一口价', exact=True).check()
     if Decimal(payload['shipping_fee']) > 0:
@@ -335,9 +358,12 @@ def publish(payload, identifier, account, recipe, before_submit):
     prepared = validate_payload(payload)
     submitted = False
     with browser._browser_lock(account['cdp_url'], wait=browser.LOCK_WAIT_SECONDS):
-        sessions._verify_dedicated_process(account['cdp_url'], sessions._profile(account['cdp_url']))
+        # A closed publishing browser is reopened with its saved logins.
+        started = sessions.ensure_browser(account['cdp_url'])
         with sessions._connected(account['cdp_url']) as context:
             page = context.new_page()
+            if started:
+                sessions.close_start_tab(context, page)
             try:
                 page.goto(PUBLISH_URL, wait_until='domcontentloaded', timeout=30_000)
                 def verify_identity():

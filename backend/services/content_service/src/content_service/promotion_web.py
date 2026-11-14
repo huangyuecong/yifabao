@@ -259,9 +259,12 @@ def publish(platform, payload, identifier, account, recipe, before_submit):
     prepared = validate_payload(platform, payload)
     submitted = False
     with browser._browser_lock(account['cdp_url'], wait=browser.LOCK_WAIT_SECONDS):
-        sessions._verify_dedicated_process(account['cdp_url'], sessions._profile(account['cdp_url']))
+        # A closed publishing browser is reopened with its saved logins.
+        started = sessions.ensure_browser(account['cdp_url'])
         with sessions._connected(account['cdp_url']) as context:
             page = context.new_page()
+            if started:
+                sessions.close_start_tab(context, page)
             try:
                 def verify_identity():
                     state = sessions._inspect_identity(context, page, platform, identifier, account, recipe)

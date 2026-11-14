@@ -7626,6 +7626,9 @@ def generate_topics(
         text_provider=text_provider,
         knowledge_resource_ids=generation_knowledge_resource_ids(payload.parameters),
     )
+    # SQLite has one writer: commit the started run before the slow model call so
+    # other users' saves are not blocked while this request waits for the model.
+    session.commit()
     try:
         result = call_text_generation(
             lambda: text_provider.topics(generation_input, payload.count),
@@ -7633,6 +7636,11 @@ def generate_topics(
         )
     except HTTPException as exc:
         fail_generation_run(session, task, run, _generation_error_message(exc))
+        session.commit()
+        raise
+    except Exception:
+        session.rollback()
+        fail_generation_run(session, task, run, "生成未完成，请重试")
         session.commit()
         raise
     reference_ids = used_reference_ids(
@@ -7752,6 +7760,9 @@ def generate_copy(
         knowledge_resource_ids=generation_knowledge_resource_ids(payload.parameters),
         source_content=source_content,
     )
+    # SQLite has one writer: commit the started run before the slow model call so
+    # other users' saves are not blocked while this request waits for the model.
+    session.commit()
     try:
         result = call_text_generation(
             lambda: text_provider.copies(generation_input, payload.count),
@@ -7759,6 +7770,11 @@ def generate_copy(
         )
     except HTTPException as exc:
         fail_generation_run(session, task, run, _generation_error_message(exc))
+        session.commit()
+        raise
+    except Exception:
+        session.rollback()
+        fail_generation_run(session, task, run, "生成未完成，请重试")
         session.commit()
         raise
     if source_title_artifact is not None:
@@ -8088,11 +8104,20 @@ def transform_copy(
             )
         return generated
 
+    # SQLite has one writer: commit the started run before the slow model call so
+    # other users' saves are not blocked while this request waits for the model.
+    session.commit()
     try:
         result = call_text_generation(generate_changed_copy, clear_generation_error=True)
     except HTTPException as exc:
         if run is not None:
             fail_generation_run(session, task, run, _generation_error_message(exc))
+            session.commit()
+        raise
+    except Exception:
+        session.rollback()
+        if run is not None:
+            fail_generation_run(session, task, run, "生成未完成，请重试")
             session.commit()
         raise
     reference_ids = used_reference_ids(
@@ -8498,6 +8523,9 @@ def generate_images(
         selected_knowledge,
         selected_reference_ids,
     )
+    # SQLite has one writer: commit the started run before the slow model call so
+    # other users' saves are not blocked while this request waits for the model.
+    session.commit()
     try:
         generated = image_provider.generate(
             ImageGenerationRequest(
@@ -8529,6 +8557,11 @@ def generate_images(
         fail_generation_run(session, task, run, str(exc))
         session.commit()
         raise HTTPException(422, str(exc)) from exc
+    except Exception:
+        session.rollback()
+        fail_generation_run(session, task, run, "生成未完成，请重试")
+        session.commit()
+        raise
     artifacts = []
     for index, generated_asset in enumerate(generated):
         key = f"tasks/{task.id}/images/{uuid4().hex}.{generated_asset.extension.lstrip('.')}"
@@ -8656,12 +8689,20 @@ def generate_storyboard(
         knowledge_resource_ids=generation_knowledge_resource_ids(payload.parameters),
         source_content=source_content,
     )
+    # SQLite has one writer: commit the started run before the slow model call so
+    # other users' saves are not blocked while this request waits for the model.
+    session.commit()
     try:
         result = call_text_generation(
             lambda: text_provider.storyboard(generation_input, payload.count)
         )
     except HTTPException as exc:
         fail_generation_run(session, task, run, str(exc.detail))
+        session.commit()
+        raise
+    except Exception:
+        session.rollback()
+        fail_generation_run(session, task, run, "生成未完成，请重试")
         session.commit()
         raise
     reference_ids = used_reference_ids(
@@ -8834,6 +8875,9 @@ def generate_voice(
         task,
         payload.instruction,
     )
+    # SQLite has one writer: commit the started run before the slow model call so
+    # other users' saves are not blocked while this request waits for the model.
+    session.commit()
     try:
         generated = speech_provider.synthesize(
             SpeechSynthesisRequest(
@@ -8856,6 +8900,11 @@ def generate_voice(
         fail_generation_run(session, task, run, str(exc))
         session.commit()
         raise HTTPException(422, str(exc)) from exc
+    except Exception:
+        session.rollback()
+        fail_generation_run(session, task, run, "生成未完成，请重试")
+        session.commit()
+        raise
     key = f"tasks/{task.id}/audio/{uuid4().hex}.{generated.extension.lstrip('.')}"
     stored = asset_store.put_bytes(key, generated.audio, generated.media_type)
     duration = generated.duration_seconds or min(max(len(text) / 8.0, 0.5), 300.0)

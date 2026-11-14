@@ -105,7 +105,7 @@ def test_only_submit_after_durable_marker_and_no_retry_on_uncertain_result(chrom
     def connection(_):
         yield context
     monkeypatch.setattr(sessions, '_connected', connection)
-    monkeypatch.setattr(sessions, '_verify_dedicated_process', lambda *_: None)
+    monkeypatch.setattr(sessions, 'ensure_browser', lambda *_: False)
     monkeypatch.setattr(sessions, '_inspect_identity', lambda *_: {'state': 'unknown' if failure == 'identity' else 'logged_in', 'account_id': 'test'})
     def receipt(*_):
         if failure == 'receipt':
@@ -142,7 +142,7 @@ def publish_with(context, monkeypatch, platform, payload, marks):
     def connection(_):
         yield context
     monkeypatch.setattr(sessions, '_connected', connection)
-    monkeypatch.setattr(sessions, '_verify_dedicated_process', lambda *_: None)
+    monkeypatch.setattr(sessions, 'ensure_browser', lambda *_: False)
     monkeypatch.setattr(sessions, '_inspect_identity', lambda *_: {'state': 'logged_in', 'account_id': 'test'})
     monkeypatch.setattr(web, 'receipt', lambda *_: {'status': 'published', 'external_id': 'fixture'})
     account = {'cdp_url': 'http://127.0.0.1:9222', 'label': 'fixture'}

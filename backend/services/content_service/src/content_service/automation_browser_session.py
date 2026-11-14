@@ -314,6 +314,40 @@ def _start_browser(cdp_url: str, profile: Path, url: str) -> None:
     )
 
 
+BROWSER_START_SECONDS = 20
+
+
+def ensure_browser(cdp_url: str) -> bool:
+    """Open the dedicated publishing browser if it is closed; True when this call started it.
+
+    A publish task should not fail just because the window was closed: the profile keeps
+    the platform logins, so starting it again is all that is needed.
+    """
+    profile = _profile(cdp_url)
+    port = urlsplit(cdp_url).port
+    started = False
+    if not _port_open(port):
+        _start_browser(cdp_url, profile, "about:blank")
+        started = True
+        deadline = time.monotonic() + BROWSER_START_SECONDS
+        while not _port_open(port):
+            if time.monotonic() >= deadline:
+                raise _error(
+                    "browser_start_timeout", "专用发布浏览器启动超时，请点击“打开发布页”后重试。"
+                )
+            time.sleep(0.3)
+    _verify_dedicated_process(cdp_url, profile)
+    return started
+
+
+def close_start_tab(context, keep) -> None:
+    """Close the blank tab a freshly started browser opens, keeping the task's own tab."""
+    for page in list(context.pages):
+        if page is not keep and page.url in {"about:blank", "edge://newtab/", "chrome://newtab/"}:
+            with suppress(Exception):
+                page.close()
+
+
 @contextmanager
 def _connected(cdp_url: str):
     if not adapter._playwright_available():

@@ -132,6 +132,41 @@ def test_other_idle_is_found_below_the_rendered_part_of_the_virtual_list(chromiu
         context.close()
 
 
+def late_list_html(delay_ms):
+    """The category list first holds text-only guesses; 其他闲置 arrives once the photos are recognised."""
+    return VIRTUAL_HTML.replace(
+        "const names = ['国产白酒', '其他酒类', '收藏-酒瓶', '养生配制酒', '露酒', '家居摆件', '酒具套件', '其他闲置'];",
+        "let names = ['其他服务', '电子资料', '社科心理'];"
+        f"setTimeout(() => {{ names = ['国产白酒', '其他酒类', '露酒', '其他闲置']; render(); }}, {delay_ms});",
+    )
+
+
+def test_category_waits_for_the_list_built_from_the_photos(chromium):
+    context = chromium.new_context()
+    context.route('**/*', lambda route: route.fulfill(content_type='text/html', body=late_list_html(2500)))
+    page = context.new_page()
+    page.goto(web.PUBLISH_URL)
+    try:
+        web._select_category(page, '其他闲置')
+        assert page.locator('.ant-select-selection-item').inner_text() == '其他闲置'
+    finally:
+        context.close()
+
+
+def test_category_gives_up_when_other_idle_never_appears(chromium, monkeypatch):
+    monkeypatch.setattr(web, 'CATEGORY_WAIT_SECONDS', 1)
+    context = chromium.new_context()
+    context.route('**/*', lambda route: route.fulfill(content_type='text/html', body=late_list_html(600_000)))
+    page = context.new_page()
+    page.goto(web.PUBLISH_URL)
+    try:
+        with pytest.raises(browser.BrowserPublishError) as error:
+            web._select_category(page, '其他闲置')
+        assert error.value.code == 'category_unavailable'
+    finally:
+        context.close()
+
+
 LOCATION_HTML = '''<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
 <div class="ant-form-item"><label title="宝贝所在地">宝贝所在地</label><div class="address--fixture" onclick="document.querySelector('[role=dialog]').hidden=false">广东东软学院</div></div>
 <div role="dialog" aria-label="宝贝所在地" hidden><div class="amap-container"></div>
@@ -265,7 +300,7 @@ def test_submission_boundary_and_uncertain_receipt_never_retry(chromium, payload
     def connected(_):
         yield context
     monkeypatch.setattr(sessions, '_connected', connected)
-    monkeypatch.setattr(sessions, '_verify_dedicated_process', lambda *_: None)
+    monkeypatch.setattr(sessions, 'ensure_browser', lambda *_: False)
     monkeypatch.setattr(sessions, '_inspect_identity', lambda *_: {'state': 'unknown' if failure == 'identity' else 'logged_in', 'account_id': 'fixture'})
     calls = []
     def prepare(*_):

@@ -673,3 +673,37 @@ def test_closed_port_is_still_reported_as_not_open(tmp_path, monkeypatch):
     _fake_lookup(monkeypatch, [], [_edge(expected)], port_open=False)
     with pytest.raises(service.adapter.BrowserPublishError, match="尚未打开"):
         service._verify_dedicated_process(service.DEFAULT_CDP, expected)
+
+
+def test_publishing_reopens_a_closed_dedicated_browser(monkeypatch, tmp_path):
+    states = iter([False, False, True])  # closed, still starting, listening
+    started, verified = [], []
+    monkeypatch.setattr(service, "_profile", lambda _url: tmp_path)
+    monkeypatch.setattr(service, "_port_open", lambda _port: next(states))
+    monkeypatch.setattr(service, "_start_browser", lambda *args: started.append(args))
+    monkeypatch.setattr(service, "_verify_dedicated_process", lambda *args: verified.append(args))
+    monkeypatch.setattr(service.time, "sleep", lambda _seconds: None)
+
+    assert service.ensure_browser(service.DEFAULT_CDP) is True
+    assert started == [(service.DEFAULT_CDP, tmp_path, "about:blank")]
+    assert verified == [(service.DEFAULT_CDP, tmp_path)]
+
+
+def test_publishing_uses_an_open_browser_as_it_is(monkeypatch, tmp_path):
+    monkeypatch.setattr(service, "_profile", lambda _url: tmp_path)
+    monkeypatch.setattr(service, "_port_open", lambda _port: True)
+    monkeypatch.setattr(service, "_start_browser", lambda *args: pytest.fail("must not start another browser"))
+    monkeypatch.setattr(service, "_verify_dedicated_process", lambda *_: None)
+    assert service.ensure_browser(service.DEFAULT_CDP) is False
+
+
+def test_start_tab_is_closed_but_the_task_tab_is_kept():
+    closed = []
+
+    class Tab(SimpleNamespace):
+        def close(self):
+            closed.append(self.url)
+
+    task, blank, other = Tab(url="https://www.goofish.com/publish"), Tab(url="about:blank"), Tab(url="https://x.com/")
+    service.close_start_tab(SimpleNamespace(pages=[task, blank, other]), task)
+    assert closed == ["about:blank"]
