@@ -161,6 +161,17 @@ export interface BrowserPlatformSession {
   url?: string
 }
 
+/** The latest known login of one platform (from the background login monitor). */
+export interface BrowserLoginStatus {
+  platform: AutomationPlatform
+  state: BrowserPlatformSession['state']
+  message: string
+  account_label: string
+  age_seconds: number
+  /** When a platform that was logged in was found signed out (seconds since epoch). */
+  lost_at: number | null
+}
+
 export interface AutomationConnectionStatus {
   configured: boolean
   ready?: boolean
@@ -300,6 +311,8 @@ export const automationApi = {
   browserSessions: (purpose?: AutomationPurpose) => request<{ items: BrowserPlatformSession[] }>({ url: `${base}/browser/sessions`, params: { purpose } }),
   openBrowser: (platform: BrowserPlatformSession['platform'], page: 'login' | 'publish') => request<BrowserPlatformSession>({ url: `${base}/browser/platforms/${platform}/open`, method: 'POST', headers, data: { page } }),
   inspectBrowser: (platform: BrowserPlatformSession['platform']) => request<BrowserPlatformSession>({ url: `${base}/browser/platforms/${platform}/inspect`, method: 'POST', headers }),
+  clearBrowserLogin: (platform: BrowserPlatformSession['platform']) => request<BrowserPlatformSession>({ url: `${base}/browser/platforms/${platform}/clear`, method: 'POST', headers }),
+  browserMonitor: () => request<{ items: BrowserLoginStatus[], interval_seconds: number }>({ url: `${base}/browser/monitor` }),
   cleanupAndroidMedia: (device: string) => request<AndroidStorage & { removed_files: number }>({ url: `${base}/android/devices/${device}/cleanup-media`, method: 'POST', headers }),
   openAndroidDraft: (device: string, run: string, platform: AutomationPlatform) => request<AndroidScreen>({ url: `${base}/android/devices/${device}/draft`, method: 'POST', headers, timeout: 300_000, data: { run_id: run, platform } }),
   fillAndroidDraft: (device: string, token: string) => request<AndroidScreen>({ url: `${base}/android/devices/${device}/fill-draft`, method: 'POST', headers: { ...headers, 'X-Android-Session': token } }),

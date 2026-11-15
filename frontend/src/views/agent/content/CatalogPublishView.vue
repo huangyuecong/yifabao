@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import type { ProductContent, PromotionPlatform, PublishRecord } from '@/api/agent/catalog'
+import type { ProductContent, PromotionPlatform } from '@/api/agent/catalog'
 import { Search, View } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { computed, onActivated, onDeactivated, ref, watch } from 'vue'
+import { ElMessage, ElNotification } from 'element-plus'
+import { computed, h, onActivated, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { automationApi } from '@/api/agent/automation'
 import { catalogApi, catalogMedia, recordStatusLabels } from '@/api/agent/catalog'
-import { platformInitial, platformName, recordStatusClass, shortTime } from './catalogPresentation'
+import { platformInitial, platformName } from './catalogPresentation'
 import ContentBrowserPanel from './ContentBrowserPanel.vue'
 import { friendlyContentError } from './contentWorkflow'
+import { confirmLogins } from './loginCheck'
 import ModuleTabs from './ModuleTabs.vue'
 import { copyProblems, mergeLimits } from './promotionPreview'
 import PromotionPreview from './PromotionPreview.vue'
@@ -26,7 +27,7 @@ const pageSize = ref(10)
 const loading = ref(false)
 const chosen = ref<string[]>([])
 const submitting = ref(false)
-const records = ref<PublishRecord[]>([])
+const accountPanel = ref<HTMLElement>()
 const platforms = ref<PromotionPlatform[]>(['douyin', 'xiaohongshu', 'kuaishou'])
 const promotionPlatforms: PromotionPlatform[] = ['douyin', 'xiaohongshu', 'kuaishou']
 const limits = ref(mergeLimits(undefined))
@@ -51,7 +52,6 @@ const copyIssues = computed(() => chosenContents.value.flatMap(content => platfo
     .map(problem => `${content.product.name}：${problem}`))))
 const recordCount = computed(() => chosen.value.length * platforms.value.length)
 const canSubmit = computed(() => chosen.value.length > 0 && platforms.value.length > 0 && !copyIssues.value.length)
-const working = computed(() => records.value.some(record => ['queued', 'running', 'submitting'].includes(record.status)))
 const previewContent = computed(() => contents.value.find(item => item.id === focusId.value) ?? null)
 const previewList = computed(() => {
   const focused = previewContent.value
@@ -82,15 +82,6 @@ async function load() {
   }
   finally {
     loading.value = false
-  }
-}
-
-async function loadRecords() {
-  try {
-    records.value = (await catalogApi.records({ workflow: 'promotion', page_size: 10 })).items
-  }
-  catch {
-    records.value = []
   }
 }
 
@@ -134,11 +125,25 @@ async function submit() {
   }
   submitting.value = true
   try {
+    // A missing login is a prompt now, not a failed record later.
+    if (!await confirmLogins('promotion', platforms.value, () => accountPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))) {
+      return
+    }
     const result = await catalogApi.publishPromotion({ content_ids: chosen.value, platforms: platforms.value })
-    ElMessage.success(`已提交 ${result.total} 条，按顺序在发布浏览器中执行`)
+    ElNotification({
+      type: 'success',
+      title: `已提交 ${result.total} 条发布`,
+      message: h('span', ['正在按顺序发布，结果见', h('a', {
+        href: '#',
+        style: 'margin-left:4px',
+        onClick: (event: Event) => {
+          event.preventDefault()
+          router.push('/agent/content/promotion/records')
+        },
+      }, '发布历史')]),
+    })
     chosen.value = []
     focusId.value = ''
-    await loadRecords()
   }
   catch (error) {
     ElMessage.error(friendlyContentError(error, '提交失败'))
@@ -148,19 +153,10 @@ async function submit() {
   }
 }
 
-let timer: ReturnType<typeof setInterval> | undefined
 onActivated(() => {
   void load()
-  void loadRecords()
   void loadLimits()
-  clearInterval(timer)
-  timer = setInterval(() => {
-    if (working.value) {
-      void loadRecords()
-    }
-  }, 5000)
 })
-onDeactivated(() => clearInterval(timer))
 </script>
 
 <template>
@@ -304,7 +300,7 @@ onDeactivated(() => clearInterval(timer))
           @step="stepPreview"
         />
 
-        <section class="wb-panel account-panel">
+        <section ref="accountPanel" class="wb-panel account-panel">
           <div class="wb-panel-head"><h2>平台账号</h2></div>
           <div class="wb-panel-body">
             <ContentBrowserPanel :enabled="true" purpose="promotion" />
@@ -312,29 +308,6 @@ onDeactivated(() => clearInterval(timer))
         </section>
       </div>
     </div>
-
-    <section class="wb-panel">
-      <div class="wb-panel-head">
-        <h2>最近发布</h2>
-        <ElButton link type="primary" @click="router.push('/agent/content/promotion/records')">查看发布历史</ElButton>
-      </div>
-      <div v-if="!records.length" class="wb-empty">还没有发布记录</div>
-      <div v-for="record in records" :key="record.id" class="record-row">
-        <span class="wb-platform" :class="`p-${record.platform}`"><i>{{ platformInitial[record.platform] }}</i>{{ platformName(record.platform) }}</span>
-        <span class="record-main wb-ellipsis">{{ record.product_name }} · {{ record.title }}</span>
-        <span class="wb-pill" :class="recordStatusClass(record.status)">{{ recordStatusLabels[record.status] }}</span>
-        <span class="record-extra wb-ellipsis">
-          <a
-            v-if="record.external_url"
-            :href="record.external_url"
-            target="_blank"
-            rel="noopener"
-          >查看</a>
-          <span v-else-if="record.error" class="wb-muted" :title="record.error">{{ record.error }}</span>
-        </span>
-        <span class="wb-muted wb-num">{{ shortTime(record.created_at) }}</span>
-      </div>
-    </section>
   </div>
 </template>
 
@@ -505,21 +478,6 @@ onDeactivated(() => clearInterval(timer))
   padding: 5px 8px;
   font-size: 12px;
 }
-.record-row {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) 72px minmax(0, 220px) 120px;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  font-size: 13px;
-  border-bottom: 1px solid var(--xi-semantic-color-divider-default);
-}
-.record-row:last-child {
-  border-bottom: 0;
-}
-.record-extra a {
-  color: var(--xi-semantic-color-link-default);
-}
 @media (width < 1400px) {
   .with-preview .account-panel :deep(.browser-connections) {
     grid-template-columns: minmax(0, 1fr);
@@ -543,13 +501,6 @@ onDeactivated(() => clearInterval(timer))
   }
 }
 @media (width < 700px) {
-  .record-row {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-  }
-  .record-extra,
-  .record-row > .wb-num {
-    display: none;
-  }
   .with-preview .settings-panel .wb-panel-body {
     display: block;
   }

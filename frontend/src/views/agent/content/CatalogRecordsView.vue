@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PublishPlatform, PublishRecord, RecordStatus, Workflow } from '@/api/agent/catalog'
 import { Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onActivated, onDeactivated, ref } from 'vue'
 import { catalogApi, platformLabels, recordStatusLabels } from '@/api/agent/catalog'
 import { platformInitial, platformName, recordStatusClass, shortTime, yuan } from './catalogPresentation'
@@ -81,6 +81,43 @@ async function retry(record: PublishRecord) {
   }
   finally {
     busy.value = ''
+  }
+}
+
+async function remove(record: PublishRecord) {
+  busy.value = record.id
+  try {
+    await catalogApi.deleteRecord(record.id)
+    await load(true)
+  }
+  catch (error) {
+    ElMessage.error(friendlyContentError(error, '删除失败'))
+  }
+  finally {
+    busy.value = ''
+  }
+}
+
+async function removeFailed() {
+  const count = counts.value.failed ?? 0
+  try {
+    await ElMessageBox.confirm(`删除${props.fixed === 'listing' ? '上架' : props.fixed === 'promotion' ? '发布' : '全部'}记录里的 ${count} 条失败记录？成功和待核查的记录不受影响。`, '删除失败记录', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  }
+  catch {
+    return
+  }
+  try {
+    const result = await catalogApi.deleteFailedRecords(props.fixed || workflow.value || undefined)
+    ElMessage.success(`已删除 ${result.deleted} 条失败记录`)
+    page.value = 1
+    await load(true)
+  }
+  catch (error) {
+    ElMessage.error(friendlyContentError(error, '删除失败'))
   }
 }
 
@@ -185,6 +222,15 @@ onDeactivated(() => clearInterval(timer))
           </button>
         </div>
         <span class="wb-spacer" />
+        <ElButton
+          v-if="counts.failed"
+          size="small"
+          type="danger"
+          plain
+          @click="removeFailed"
+        >
+          删除失败记录（{{ counts.failed }}）
+        </ElButton>
         <small v-if="fixed" class="wb-muted">「待核查」表示已点发布但没拿到平台回执，请到平台确认后标记。</small>
       </div>
       <ElTable
@@ -245,7 +291,7 @@ onDeactivated(() => clearInterval(timer))
             <span class="wb-muted wb-num" :title="row.attempt > 1 ? `第 ${row.attempt} 次执行` : ''">{{ shortTime(row.finished_at || row.created_at) }}</span>
           </template>
         </ElTableColumn>
-        <ElTableColumn width="90" align="right">
+        <ElTableColumn width="120" align="right">
           <template #default="{ row }">
             <ElButton
               v-if="row.status === 'failed'"
@@ -255,6 +301,15 @@ onDeactivated(() => clearInterval(timer))
               @click="retry(row)"
             >
               重试
+            </ElButton>
+            <ElButton
+              v-if="row.status === 'failed'"
+              link
+              type="danger"
+              :disabled="busy === row.id"
+              @click="remove(row)"
+            >
+              删除
             </ElButton>
             <ElButton
               v-else-if="row.status === 'unknown'"

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from PIL import Image, ImageOps
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, or_, select
@@ -727,6 +727,19 @@ class ListingInput(BaseModel):
         return clean(value)
 
 
+LABELS = {"xianyu": "闲鱼", "douyin": "抖音", "xiaohongshu": "小红书", "kuaishou": "快手"}
+
+
+def _require_login(platforms: list[str]) -> None:
+    """Refuse up front when the latest login check says a platform is signed out."""
+    from . import login_monitor
+
+    missing = login_monitor.signed_out(platforms)
+    if missing:
+        names = "、".join(LABELS.get(platform, platform) for platform in missing)
+        raise HTTPException(409, f"{names}还没有登录，请先在“平台账号”里登录后再发布")
+
+
 def _trial_user() -> str:
     """On the online trial, the account submitting; its own server browser will publish."""
     from . import trial_accounts
@@ -738,6 +751,7 @@ def _trial_user() -> str:
 @router.post("/publish/listing", status_code=202, dependencies=WRITE)
 def publish_listing(body: ListingInput, identity: Identity = Depends(require_publisher),
                     session: Session = Depends(db.get_session)):
+    _require_login(["xianyu"])
     contents = _contents(session, body.content_ids, identity)
     _busy(session, identity, len(contents))
     problems, records = [], []
@@ -777,6 +791,7 @@ def publish_promotion(body: PromotionInput, identity: Identity = Depends(require
                       session: Session = Depends(db.get_session)):
     contents = _contents(session, body.content_ids, identity)
     platforms = list(dict.fromkeys(body.platforms))
+    _require_login(platforms)
     _busy(session, identity, len(contents) * len(platforms))
     problems, records = [], []
     for content in contents:
@@ -854,6 +869,40 @@ def retry_record(record_id: str, identity: Identity = Depends(require_publisher)
     session.commit()
     catalog_publishing.submit([record.id])
     return record_document(record, session.get(Product, record.product_id))
+
+
+@router.delete("/records/{record_id}", status_code=204, dependencies=WRITE)
+def delete_record(record_id: str, identity: Identity = Depends(require_publisher),
+                  session: Session = Depends(db.get_session)):
+    """Remove a failed (never submitted) record. Succeeded, running and unknown ones stay."""
+    record = owned(session, PublishRecord, record_id, identity)
+    if record.status != "failed":
+        raise HTTPException(409, "只能删除失败的记录")
+    audit(session, identity, "record_delete", record.id)
+    session.delete(record)
+    session.commit()
+    return Response(status_code=204)
+
+
+class DeleteFailedInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    workflow: Literal["listing", "promotion"] | None = None
+
+
+@router.post("/records/delete-failed", dependencies=WRITE)
+def delete_failed_records(body: DeleteFailedInput, identity: Identity = Depends(require_publisher),
+                          session: Session = Depends(db.get_session)):
+    """Clear every failed record (of one workflow when given)."""
+    query = select(PublishRecord).where(PublishRecord.owner_id == identity.user_id, PublishRecord.status == "failed")
+    if body.workflow:
+        query = query.where(PublishRecord.workflow == body.workflow)
+    rows = session.scalars(query).all()
+    for row in rows:
+        session.delete(row)
+    if rows:
+        audit(session, identity, "record_delete_failed", rows[0].id, {"count": len(rows)})
+    session.commit()
+    return {"deleted": len(rows)}
 
 
 class ResolveInput(BaseModel):

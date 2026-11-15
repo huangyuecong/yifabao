@@ -880,7 +880,10 @@ def _browser_lock(
     """
     directory = _data_dir() / "private" / "publishing-locks"
     directory.mkdir(parents=True, exist_ok=True)
-    suffix = "" if purpose == "publish" else f"-{purpose}"
+    from . import remote_browser
+
+    # On the online trial accounts share one browser; each has its own locks.
+    suffix = ("" if purpose == "publish" else f"-{purpose}") + remote_browser.lock_scope()
     path = directory / f"browser-{urlsplit(cdp_url).port}{suffix}.lock"
     handle = path.open("a+b")
     acquired = False

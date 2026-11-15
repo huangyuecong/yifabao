@@ -248,4 +248,7 @@ export const catalogApi = {
   retryRecord: (id: string) => request<PublishRecord>({ url: `${base}/records/${id}/retry`, method: 'POST', headers }),
   resolveRecord: (id: string, status: 'succeeded' | 'failed', externalUrl = '') =>
     request<PublishRecord>({ url: `${base}/records/${id}/resolve`, method: 'POST', headers, data: { status, external_url: externalUrl } }),
+  deleteRecord: (id: string) => request<void>({ url: `${base}/records/${id}`, method: 'DELETE', headers }),
+  deleteFailedRecords: (workflow?: Workflow) =>
+    request<{ deleted: number }>({ url: `${base}/records/delete-failed`, method: 'POST', headers, data: { workflow } }),
 }

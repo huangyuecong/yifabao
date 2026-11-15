@@ -21,7 +21,8 @@ import {
   User,
 } from '@element-plus/icons-vue'
 import { useFullscreen } from '@vueuse/core'
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElNotification } from 'element-plus'
+import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { catalogApi } from '@/api/agent/catalog'
 import { contentApi } from '@/api/agent/content'
@@ -163,6 +164,44 @@ function go(item: NavItem) {
   router.push(item.path)
 }
 
+// Batch generation runs in the background: tell the user when it finishes, wherever they are.
+let generating: { active: number, review: number, failed: number } | undefined
+function noticeFinishedGeneration(items: Record<string, number | undefined>) {
+  const now = {
+    active: (items.queued ?? 0) + (items.running ?? 0),
+    review: items.review ?? 0,
+    failed: items.failed ?? 0,
+  }
+  const before = generating
+  generating = now
+  if (!before || before.active === 0 || now.active >= before.active) {
+    return
+  }
+  const done = Math.max(0, now.review - before.review)
+  const failed = Math.max(0, now.failed - before.failed)
+  if (!done && !failed) {
+    return
+  }
+  const finished = now.active === 0
+  ElNotification({
+    type: failed && !done ? 'error' : failed ? 'warning' : 'success',
+    title: finished ? '内容生成完成' : '有内容生成好了',
+    duration: 8000,
+    message: h('span', [
+      [done ? `${done} 条已生成，等待审核` : '', failed ? `${failed} 条生成失败` : ''].filter(Boolean).join('，'),
+      finished ? '' : `，还有 ${now.active} 条在生成`,
+      h('a', {
+        href: '#',
+        style: 'margin-left:6px',
+        onClick: (event: Event) => {
+          event.preventDefault()
+          router.push('/agent/content/review')
+        },
+      }, '去审核'),
+    ]),
+  })
+}
+
 async function loadStatus() {
   if (statusLoading.value) {
     return
@@ -172,6 +211,7 @@ async function loadStatus() {
   overallStatus.value = status.status === 'fulfilled' ? status.value.overall : undefined
   if (overview.status === 'fulfilled') {
     pendingReviewCount.value = overview.value.items.review ?? 0
+    noticeFinishedGeneration(overview.value.items)
   }
   statusLoading.value = false
 }

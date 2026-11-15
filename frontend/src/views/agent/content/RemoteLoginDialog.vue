@@ -168,7 +168,7 @@ onBeforeUnmount(stop)
   >
     <p class="hint">
       下面是服务器上的{{ label }}登录页。用手机{{ label }} App 扫描画面里的二维码；需要切换到“扫码登录”或点按钮时，直接点画面。
-      登录信息只保存在服务器上你的试用账号名下，可随时在“平台账号”里清除。
+      这是只属于你试用账号的无痕窗口：登录信息不写入硬盘，闲置 45 分钟或在“平台账号”里清除后就全部删除。
     </p>
     <div v-loading="starting && !image" class="screen" element-loading-text="正在打开服务器浏览器…">
       <img

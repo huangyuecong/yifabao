@@ -311,8 +311,16 @@ def generate_draft(config, product, images, rules, settings):
         )
     parts = [{"type": "text", "text": json.dumps(facts, ensure_ascii=False)}]
     if config["purpose"] == "creation":
-        system += ("另外同时返回 listing_title(1-30字) 和 listing_description(1-1000字)，作为独立的商品上架标题和事实描述。"
-                   "商品描述只整理可核实的规格、材质和外观，不包含宣传口播、不编造售价或交易条件。")
+        # The two copies are read in very different places: title/description are a short-video
+        # sales pitch, listing_* is a person selling one item on Xianyu. Keep them apart.
+        system += ("另外同时返回 listing_title(1-30字) 和 listing_description(1-1000字)，用于闲鱼上架，"
+                   "风格必须和 title/description 明显不同：title/description 是短视频带货口吻（开头抓人、场景化、可带 2-4 个#话题）；"
+                   "listing_title/listing_description 是个人卖家在闲鱼转让闲置的口吻，平实、具体、可信。"
+                   "listing_title：直接写品名和关键规格（如容量、型号、尺寸、配件），像搜索关键词一样好找，"
+                   "不用感叹号、话题标签、表情和“必入、闭眼冲、爆款、绝绝子”之类营销词。"
+                   "listing_description：分 3-5 行短句，依次写清①这是什么（品名、规格、包装/配件）②外观与细节（只写资料或图片能确认的）"
+                   "③适合谁、用来做什么（一句）④交易说明只写资料里明确给出的，没有就写“其他问题欢迎私聊”。"
+                   "不写宣传口播、不夸张，不编造成色、售价、购买渠道、使用时长或交易条件，不写话题标签。")
     for source in images:
         parts.extend(
             [{"type": "text", "text": "图片 ID: " + source["id"]}, _image_input(source["path"])]

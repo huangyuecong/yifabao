@@ -227,6 +227,8 @@ _ACTIONS: list[tuple[str, re.Pattern, str]] = [
         ("POST", r"^/api/v1/catalog/records/[^/]+/retry$", "重试发布"),
         ("POST", r"^/api/v1/catalog/records/[^/]+/resolve$", "核查发布结果"),
         ("DELETE", r"^/api/v1/catalog/records/[^/]+$", "删除发布记录"),
+        ("POST", r"^/api/v1/catalog/records/delete-failed$", "清空失败的发布记录"),
+        ("POST", r"^/api/v1/automation/browser/platforms/(?P<platform>[^/]+)/clear$", "清除登录缓存：{platform}"),
         ("POST", r"^/api/v1/catalog/products$", "新增商品"),
         ("PATCH", r"^/api/v1/catalog/products/[^/]+$", "修改商品"),
         ("PUT", r"^/api/v1/catalog/products/[^/]+$", "修改商品"),

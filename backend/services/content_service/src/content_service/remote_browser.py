@@ -1,19 +1,23 @@
-"""Server-side publishing browsers for the online trial, one per trial account.
+"""Server-side publishing browser for the online trial: one incognito context per trial account.
 
 The local workbench opens a visible browser on the user's own computer. On the trial
-server there is no screen, so with CONTENT_REMOTE_BROWSER=true each trial account gets
-its own Chromium profile and debugging port on a virtual display, and the web page
-shows that browser's login tab as a picture: testers scan the platform's QR code with
-their phone, and may click or type into the page (for a verification code). Publish
-tasks then run in the account's own browser, so one tester never publishes with
-another tester's platform login.
+server there is no screen, so with CONTENT_REMOTE_BROWSER=true one Chromium runs on a
+virtual display and every trial account gets its own incognito browser context in it
+(like an incognito window: separate cookies and storage, nothing written to disk).
+The web page shows that context's login tab as a picture: testers scan the platform's
+QR code with their phone, and may click or type into the page (for a verification
+code). Publish tasks run in the submitting account's own context, so one tester never
+publishes with another tester's platform login.
 
-Only one browser runs at a time (``CONTENT_REMOTE_BROWSER_MAX``) on the small server;
-an idle one is closed after ``IDLE_SECONDS`` and its logins stay in its profile. A
-tester can clear their platform logins from the server with ``forget``.
+A context closes after ``IDLE_SECONDS`` without use (never while it is publishing), or
+when the tester clears it; its logins are gone with it. Each context keeps one marker
+tab (``MARKER``) so it can be found again after the service restarts. At most
+``CONTENT_REMOTE_BROWSER_MAX`` contexts are open at once.
 
-The screen and input use the browser's own DevTools protocol over a local websocket,
-so a poll every couple of seconds does not start a Playwright driver each time.
+Playwright, reconnecting for every task, sees all tabs as one context, so the publishers
+get an ``AccountContext`` that opens tabs, lists tabs and clears cookies inside the
+account's own context. The screen and input use the DevTools protocol over a local
+websocket, so polling the picture does not start a Playwright driver each time.
 """
 
 from __future__ import annotations
@@ -27,12 +31,14 @@ import signal
 import subprocess
 import threading
 import time
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,18 +46,19 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import automation_browser as adapter
 from . import trial_accounts
 
-PORT_BASE = 9300
-PORT_SPAN = 500
-IDLE_SECONDS = 10 * 60
-START_SECONDS = 20
+PORT = 9300
+CDP_URL = f"http://127.0.0.1:{PORT}"
+MARKER = "about:blank#yifabao-account="
+IDLE_SECONDS = 45 * 60
 WINDOW = (1280, 860)
 PLATFORMS = ("xianyu", "douyin", "xiaohongshu", "kuaishou")
-LABELS = {"xianyu": "闲鱼", "douyin": "抖音", "xiaohongshu": "小红书", "kuaishou": "快手"}
 
-# A publish task runs outside any request; it names the account whose browser to use.
+# A publish task runs outside any request; it names the account whose context to use.
 task_owner: ContextVar[str | None] = ContextVar("remote_browser_owner", default=None)
+# Set by the login monitor: its checks must not keep an idle context open.
+monitoring: ContextVar[bool] = ContextVar("remote_browser_monitoring", default=False)
 _lock = threading.RLock()
-_last_used: dict[int, float] = {}
+_last_used: dict[str, float] = {}
 _reaper: threading.Thread | None = None
 
 
@@ -59,15 +66,15 @@ def enabled() -> bool:
     return os.getenv("CONTENT_REMOTE_BROWSER", "false").strip().lower() == "true"
 
 
-def _max_browsers() -> int:
+def _max_contexts() -> int:
     try:
-        return max(1, int(os.getenv("CONTENT_REMOTE_BROWSER_MAX", "1")))
+        return max(1, int(os.getenv("CONTENT_REMOTE_BROWSER_MAX", "6")))
     except ValueError:
-        return 1
+        return 6
 
 
 def owner() -> str | None:
-    """The trial account whose browser applies here: the publish task's, else the request's."""
+    """The trial account whose context applies here: the publish task's, else the request's."""
     named = task_owner.get()
     if named:
         return named
@@ -75,28 +82,14 @@ def owner() -> str | None:
     return account.username if account else None
 
 
-def _ports_path() -> Path:
-    return adapter._data_dir() / "private" / "remote-browser-ports.json"
+def account_id(username: str) -> str:
+    return "trial-" + re.sub(r"[^A-Za-z0-9_-]", "_", username)[:56]
 
 
-def port_for(username: str) -> int:
-    """A stable debugging port per account, assigned on first use."""
-    with _lock:
-        path = _ports_path()
-        try:
-            ports = json.loads(path.read_text(encoding="utf-8"))
-            ports = ports if isinstance(ports, dict) else {}
-        except (OSError, ValueError):
-            ports = {}
-        if username not in ports:
-            used = set(ports.values())
-            free = next((port for port in range(PORT_BASE, PORT_BASE + PORT_SPAN) if port not in used), None)
-            if free is None:
-                raise adapter.BrowserPublishError("browser_ports_full", "服务器发布浏览器数量已满，请联系管理员。")
-            ports[username] = free
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(ports, ensure_ascii=False), encoding="utf-8")
-        return int(ports[username])
+def lock_scope() -> str:
+    """Accounts share one browser but must not wait for each other's publish or status locks."""
+    username = owner() if enabled() else None
+    return "-" + account_id(username) if username else ""
 
 
 def config_override() -> dict | None:
@@ -113,7 +106,7 @@ def config_override() -> dict | None:
         "accounts": {
             account_id(username): {
                 "label": f"{label}的平台账号",
-                "cdp_url": f"http://127.0.0.1:{port_for(username)}",
+                "cdp_url": CDP_URL,
                 "platforms": {
                     platform: {"adapter": "xianyu-web-v1" if platform == "xianyu" else "promotion-web-v1", "enabled": True}
                     for platform in PLATFORMS
@@ -123,11 +116,7 @@ def config_override() -> dict | None:
     }
 
 
-def account_id(username: str) -> str:
-    return "trial-" + re.sub(r"[^A-Za-z0-9_-]", "_", username)[:56]
-
-
-# --------------------------------------------------------------------------- processes
+# --------------------------------------------------------------------------- the browser process
 
 def _executable() -> str:
     for name in (os.getenv("CONTENT_REMOTE_BROWSER_BIN", ""), "chromium-browser", "chromium", "google-chrome"):
@@ -162,24 +151,22 @@ def _port_of(arguments: list[str]) -> int | None:
     return None
 
 
+def _profile() -> Path:
+    from . import automation_browser_session as sessions
+
+    return sessions._profile(CDP_URL)
+
+
 def start(cdp_url: str, profile: Path, url: str) -> None:
-    """Start this account's browser on the virtual display, closing an idle one if needed."""
-    port = urlsplit(cdp_url).port
+    """Start the shared browser on the virtual display. Accounts never use its default context."""
     with _lock:
-        running = [(pid, _port_of(arguments)) for pid, arguments in _processes()]
-        others = [(pid, other) for pid, other in running if other != port]
-        while len(others) >= _max_browsers():
-            pid, other = others.pop(0)
-            if not _stop_if_idle(other, pid):
-                raise adapter.BrowserPublishError(
-                    "browser_busy", "服务器的发布浏览器正在为其他试用账号发布，请过几分钟再试。"
-                )
+        shutil.rmtree(profile, ignore_errors=True)
         profile.mkdir(parents=True, exist_ok=True)
         environment = {**os.environ, "DISPLAY": os.getenv("CONTENT_REMOTE_BROWSER_DISPLAY", ":99")}
         subprocess.Popen(
             [
                 _executable(),
-                f"--remote-debugging-port={port}",
+                f"--remote-debugging-port={PORT}",
                 "--remote-debugging-address=127.0.0.1",
                 f"--user-data-dir={profile}",
                 f"--window-size={WINDOW[0]},{WINDOW[1]}",
@@ -187,13 +174,12 @@ def start(cdp_url: str, profile: Path, url: str) -> None:
                 "--no-default-browser-check",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
-                "--renderer-process-limit=3",
                 "--disable-features=Translate,BackForwardCache,MediaRouter",
                 "--lang=zh-CN",
                 # Server-specific switches, e.g. --no-sandbox where the service may not
                 # create the browser's own sandbox (systemd NoNewPrivileges).
                 *os.getenv("CONTENT_REMOTE_BROWSER_FLAGS", "").split(),
-                url,
+                "about:blank",
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -202,66 +188,41 @@ def start(cdp_url: str, profile: Path, url: str) -> None:
             start_new_session=True,
             close_fds=True,
         )
-        _last_used[port] = time.monotonic()
         _ensure_reaper()
 
 
 def verify(cdp_url: str, profile: Path) -> None:
-    """The listener on this port must be the account's own browser bound to loopback."""
-    port = urlsplit(cdp_url).port
-    rows = [arguments for _pid, arguments in _processes() if _port_of(arguments) == port]
+    """The listener on the port must be our browser, bound to loopback, with our profile."""
+    rows = [arguments for _pid, arguments in _processes() if _port_of(arguments) == PORT]
     if not rows:
         raise adapter.BrowserPublishError("browser_unreachable", "发布浏览器尚未打开。")
     for arguments in rows:
         profiles = [value.split("=", 1)[1] for value in arguments if value.startswith("--user-data-dir=")]
         if "--remote-debugging-address=127.0.0.1" not in arguments or len(profiles) != 1 or Path(profiles[0]).resolve() != profile:
             raise adapter.BrowserPublishError("browser_profile_conflict", "发布端口被其他浏览器占用，请联系管理员。")
-    _last_used[port] = time.monotonic()
+    _touch()
 
 
-def _stop_if_idle(port: int | None, pid: int) -> bool:
-    """Close a browser no publish task is using. Its profile (and logins) stays on disk."""
-    if port is None:
-        return False
-    try:
-        with adapter._browser_lock(f"http://127.0.0.1:{port}", wait=0):
-            _stop(pid)
-            _last_used.pop(port, None)
-            return True
-    except adapter.BrowserPublishError:
-        return False
+def _running() -> bool:
+    from . import automation_browser_session as sessions
+
+    return sessions._port_open(PORT)
 
 
-def _stop(pid: int) -> None:
-    with suppress(ProcessLookupError, PermissionError):
-        os.kill(pid, signal.SIGTERM)
-    deadline = time.monotonic() + 8
-    while time.monotonic() < deadline and Path(f"/proc/{pid}").exists():
-        time.sleep(0.2)
-    with suppress(ProcessLookupError, PermissionError):
-        os.kill(pid, signal.SIGKILL)
+def _stop_browser() -> None:
+    for pid, arguments in _processes():
+        if _port_of(arguments) == PORT:
+            with suppress(ProcessLookupError, PermissionError):
+                os.kill(pid, signal.SIGTERM)
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline and Path(f"/proc/{pid}").exists():
+                time.sleep(0.2)
+            with suppress(ProcessLookupError, PermissionError):
+                os.kill(pid, signal.SIGKILL)
+    shutil.rmtree(_profile(), ignore_errors=True)
 
 
-def _ensure_reaper() -> None:
-    global _reaper
-    if _reaper is not None and _reaper.is_alive():
-        return
-
-    def reap():
-        while True:
-            time.sleep(60)
-            with suppress(Exception), _lock:
-                now = time.monotonic()
-                for pid, arguments in _processes():
-                    port = _port_of(arguments)
-                    if port and PORT_BASE <= port < PORT_BASE + PORT_SPAN and now - _last_used.get(port, 0) > IDLE_SECONDS:
-                        _stop_if_idle(port, pid)
-
-    _reaper = threading.Thread(target=reap, name="remote-browser-reaper", daemon=True)
-    _reaper.start()
-
-
-# --------------------------------------------------------------------------- screen and input
+# --------------------------------------------------------------------------- incognito contexts
 
 class _DevTools:
     """A minimal DevTools-protocol client for one tab."""
@@ -288,43 +249,213 @@ class _DevTools:
             self.socket.close()
 
 
-def _targets(port: int) -> list[dict]:
+
+def _browser_call(method: str, params: dict | None = None) -> dict:
     opener = build_opener(ProxyHandler({}))
-    with opener.open(Request(f"http://127.0.0.1:{port}/json/list"), timeout=5) as response:
-        items = json.loads(response.read(2_000_000))
-    return [item for item in items if item.get("type") == "page" and item.get("webSocketDebuggerUrl")]
+    with opener.open(Request(f"{CDP_URL}/json/version"), timeout=5) as response:
+        websocket = json.loads(response.read(64_000))["webSocketDebuggerUrl"]
+    client = _DevTools(websocket)
+    try:
+        return client.call(method, params)
+    finally:
+        client.close()
 
 
-def _platform_tab(port: int, platform: str) -> dict:
-    """The newest tab on this platform's own sites (the login or task tab)."""
+def _pages() -> list[dict]:
+    return [item for item in _browser_call("Target.getTargets").get("targetInfos", []) if item.get("type") == "page"]
+
+
+def _contexts() -> dict[str, str]:
+    """Open accounts -> their context id, read from the marker tabs (survives a service restart)."""
+    if not _running():
+        return {}
+    return {
+        page["url"][len(MARKER):]: page["browserContextId"]
+        for page in _pages() if page.get("url", "").startswith(MARKER)
+    }
+
+
+def _touch(username: str | None = None) -> None:
+    username = username or owner()
+    if username and not monitoring.get():
+        _last_used[username] = time.monotonic()
+
+
+@contextmanager
+def _account_lock(username: str, wait: float) -> Iterator[None]:
+    """That account's publish lock: held while it publishes, so its context is not closed under it."""
+    token = task_owner.set(username)
+    try:
+        with adapter._browser_lock(CDP_URL, wait=wait):
+            yield
+    finally:
+        task_owner.reset(token)
+
+
+def _close_context(username: str, context: str) -> None:
+    with suppress(Exception):
+        _browser_call("Target.disposeBrowserContext", {"browserContextId": context})
+    _last_used.pop(username, None)
+    _forget_bindings(username)
+
+
+def _forget_bindings(username: str) -> None:
+    bindings = adapter._data_dir() / "private" / "browser-login-bindings"
+    if bindings.is_dir():
+        for path in bindings.glob(f"{account_id(username)}-*.json"):
+            path.unlink(missing_ok=True)
+
+
+def context_for(username: str, *, create: bool) -> str | None:
+    """The account's incognito context id; with ``create``, opens one (closing the most idle if full)."""
+    with _lock:
+        contexts = _contexts()
+        if username in contexts:
+            return contexts[username]
+        if not create:
+            return None
+        others = sorted((name for name in contexts if name != username), key=lambda name: _last_used.get(name, 0))
+        while len(contexts) >= _max_contexts() and others:
+            name = others.pop(0)
+            try:
+                with _account_lock(name, wait=0):
+                    _close_context(name, contexts.pop(name))
+            except adapter.BrowserPublishError:
+                continue
+        if len(contexts) >= _max_contexts():
+            raise adapter.BrowserPublishError("browser_busy", "服务器上同时登录的试用账号已满，请过几分钟再试。")
+        context = _browser_call("Target.createBrowserContext", {"disposeOnDetach": False})["browserContextId"]
+        _browser_call("Target.createTarget", {"url": MARKER + username, "browserContextId": context})
+        _forget_bindings(username)  # a new incognito context has no login yet
+        _touch(username)
+        return context
+
+
+def has_context(username: str | None = None) -> bool:
+    username = username or owner()
+    return bool(username) and _running() and context_for(username, create=False) is not None
+
+
+def running_owners() -> list[str]:
+    """Trial accounts with an open context now."""
+    try:
+        return list(_contexts())
+    except Exception:
+        return []
+
+
+class AccountContext:
+    """The part of a Playwright BrowserContext the publishers use, inside one account's context."""
+
+    def __init__(self, browser, base, context_id: str):
+        self._base = base
+        self._id = context_id
+        self._session = browser.new_browser_cdp_session()
+
+    def _context_of(self, page) -> str | None:
+        try:
+            session = self._base.new_cdp_session(page)
+        except Exception:
+            return None
+        try:
+            return session.send("Target.getTargetInfo")["targetInfo"].get("browserContextId")
+        except Exception:
+            return None
+        finally:
+            with suppress(Exception):
+                session.detach()
+
+    @property
+    def pages(self) -> list:
+        return [page for page in self._base.pages
+                if not page.url.startswith(MARKER) and self._context_of(page) == self._id]
+
+    def new_page(self):
+        tag = uuid4().hex
+        self._session.send("Target.createTarget", {"url": f"about:blank#tab-{tag}", "browserContextId": self._id})
+        found = next((page for page in self._base.pages if page.url.endswith(tag)), None)
+        return found or self._base.wait_for_event("page", predicate=lambda page: page.url.endswith(tag), timeout=15_000)
+
+    def new_cdp_session(self, page):
+        return self._base.new_cdp_session(page)
+
+    def clear_cookies(self, domain=None) -> None:
+        if domain is None:
+            self._session.send("Storage.clearCookies", {"browserContextId": self._id})
+            return
+        cookies = self._session.send("Storage.getCookies", {"browserContextId": self._id}).get("cookies", [])
+        keep = [cookie for cookie in cookies if not domain.search(cookie.get("domain", "").lstrip("."))]
+        self._session.send("Storage.clearCookies", {"browserContextId": self._id})
+        fields = ("name", "value", "domain", "path", "secure", "httpOnly", "sameSite", "priority", "sourceScheme")
+        restored = [{**{key: cookie[key] for key in fields if key in cookie},
+                     **({"expires": cookie["expires"]} if cookie.get("expires", -1) > 0 else {})} for cookie in keep]
+        if restored:
+            self._session.send("Storage.setCookies", {"cookies": restored, "browserContextId": self._id})
+
+
+def account_context(browser, base) -> AccountContext:
+    username = owner()
+    if not username:
+        raise adapter.BrowserPublishError("account_required", "请先用试用账号登录。")
+    return AccountContext(browser, base, context_for(username, create=True))
+
+
+def _ensure_reaper() -> None:
+    global _reaper
+    if _reaper is not None and _reaper.is_alive():
+        return
+
+    def reap():
+        idle_since = None
+        while True:
+            time.sleep(60)
+            with suppress(Exception), _lock:
+                now = time.monotonic()
+                contexts = _contexts()
+                for name, context in contexts.items():
+                    if now - _last_used.get(name, 0) > IDLE_SECONDS:
+                        try:
+                            with _account_lock(name, wait=0):
+                                _close_context(name, context)
+                        except adapter.BrowserPublishError:
+                            continue  # publishing right now
+                # Nobody has used the browser for a while: free its memory.
+                if _running() and not _contexts():
+                    idle_since = idle_since or now
+                    if now - idle_since > IDLE_SECONDS:
+                        _stop_browser()
+                        idle_since = None
+                else:
+                    idle_since = None
+
+    _reaper = threading.Thread(target=reap, name="remote-browser-reaper", daemon=True)
+    _reaper.start()
+
+
+# --------------------------------------------------------------------------- screen and input
+
+def _platform_tab(platform: str) -> str:
+    """DevTools websocket of the account's tab on this platform's sites (the login or task tab)."""
     from . import automation_browser_session as sessions
 
+    username = owner()
+    context = context_for(username, create=False) if username and _running() else None
+    if context is None:
+        raise adapter.BrowserPublishError("browser_unreachable", "你的服务器浏览器已关闭（闲置 45 分钟会自动关闭），请重新点击扫码登录。")
     hosts = {urlsplit(sessions.PAGES[platform]["login"]).hostname or "", *sessions.LOGIN_HOSTS.get(platform, ())}
     domains = {".".join(host.split(".")[-2:]) for host in hosts} | ({"taobao.com"} if platform == "xianyu" else set())
-    tabs = _targets(port)
-    for tab in tabs:  # DevTools lists the most recently active tab first
-        host = urlsplit(tab.get("url", "")).hostname or ""
-        if ".".join(host.split(".")[-2:]) in domains:
-            return tab
-    if tabs:
-        return tabs[0]
-    raise adapter.BrowserPublishError("browser_tab_missing", "发布浏览器里没有打开的页面，请重新点击扫码登录。")
-
-
-def _connection(platform: str) -> tuple[int, dict]:
-    from . import automation_browser_session as sessions
-
-    _identifier, account, _recipe = sessions._connection(platform)
-    port = urlsplit(account["cdp_url"]).port
-    if not sessions._port_open(port):
-        raise adapter.BrowserPublishError("browser_unreachable", "发布浏览器已关闭（闲置 10 分钟会自动关闭），请重新点击扫码登录。")
-    sessions._verify_dedicated_process(account["cdp_url"], sessions._profile(account["cdp_url"]))
-    return port, _platform_tab(port, platform)
+    tabs = [page for page in _pages() if page.get("browserContextId") == context and not page.get("url", "").startswith(MARKER)]
+    chosen = next((tab for tab in reversed(tabs)
+                   if ".".join((urlsplit(tab.get("url", "")).hostname or "").split(".")[-2:]) in domains), None)
+    chosen = chosen or (tabs[-1] if tabs else None)
+    if chosen is None:
+        raise adapter.BrowserPublishError("browser_tab_missing", "服务器浏览器里没有打开的页面，请重新点击扫码登录。")
+    _touch()
+    return f"ws://127.0.0.1:{PORT}/devtools/page/{chosen['targetId']}"
 
 
 def screen(platform: str) -> tuple[bytes, int, int]:
-    port, tab = _connection(platform)
-    client = _DevTools(tab["webSocketDebuggerUrl"])
+    client = _DevTools(_platform_tab(platform))
     try:
         with suppress(Exception):
             client.call("Page.bringToFront", timeout=3)
@@ -332,13 +463,11 @@ def screen(platform: str) -> tuple[bytes, int, int]:
         shot = client.call("Page.captureScreenshot", {"format": "jpeg", "quality": 72}, timeout=10)
     finally:
         client.close()
-    _last_used[port] = time.monotonic()
     return base64.b64decode(shot["data"]), int(metrics.get("clientWidth") or WINDOW[0]), int(metrics.get("clientHeight") or WINDOW[1])
 
 
 def click(platform: str, x: float, y: float) -> None:
-    port, tab = _connection(platform)
-    client = _DevTools(tab["webSocketDebuggerUrl"])
+    client = _DevTools(_platform_tab(platform))
     try:
         metrics = client.call("Page.getLayoutMetrics", timeout=5).get("cssVisualViewport", {})
         left = round(x * float(metrics.get("clientWidth") or WINDOW[0]))
@@ -348,7 +477,6 @@ def click(platform: str, x: float, y: float) -> None:
                                                      "clickCount": 0 if kind == "mouseMoved" else 1})
     finally:
         client.close()
-    _last_used[port] = time.monotonic()
 
 
 KEYS = {
@@ -359,8 +487,7 @@ KEYS = {
 
 
 def type_text(platform: str, text: str, key: str | None) -> None:
-    port, tab = _connection(platform)
-    client = _DevTools(tab["webSocketDebuggerUrl"])
+    client = _DevTools(_platform_tab(platform))
     try:
         if text:
             client.call("Input.insertText", {"text": text})
@@ -370,24 +497,18 @@ def type_text(platform: str, text: str, key: str | None) -> None:
             client.call("Input.dispatchKeyEvent", {"type": "keyUp", **{k: v for k, v in spec.items() if k != "text"}})
     finally:
         client.close()
-    _last_used[port] = time.monotonic()
 
 
 def forget(username: str) -> None:
-    """Close the account's browser and delete its profile: its platform logins are gone."""
-    port = port_for(username)
-    cdp_url = f"http://127.0.0.1:{port}"
-    with _lock, adapter._browser_lock(cdp_url, wait=30):
-        for pid, arguments in _processes():
-            if _port_of(arguments) == port:
-                _stop(pid)
-        _last_used.pop(port, None)
-        from . import automation_browser_session as sessions
+    """Close the account's incognito context: all its platform logins are gone."""
+    with _lock, _account_lock(username, wait=30):
+        context = _contexts().get(username)
+        if context:
+            _close_context(username, context)
+        _forget_bindings(username)
+    from . import login_monitor
 
-        shutil.rmtree(sessions._profile(cdp_url), ignore_errors=True)
-        bindings = adapter._data_dir() / "private" / "browser-login-bindings"
-        for path in bindings.glob(f"{account_id(username)}-*.json") if bindings.is_dir() else []:
-            path.unlink(missing_ok=True)
+    login_monitor.forget(owner=username)
 
 
 # --------------------------------------------------------------------------- routes
@@ -423,8 +544,11 @@ def _translate(error: adapter.BrowserPublishError) -> HTTPException:
 def start_login(platform: Platform, _user: str = Depends(require_trial_account)) -> dict:
     """Open this platform's login page in the account's server browser."""
     from . import automation_browser_session as sessions
+    from . import login_monitor
 
-    return sessions.session(platform, open_page="login")
+    result = sessions.session(platform, open_page="login")
+    login_monitor.remember(result)
+    return result
 
 
 @router.get("/{platform}/screen")

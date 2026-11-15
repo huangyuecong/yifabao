@@ -2,10 +2,12 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
+from . import automation_browser as adapter
 from . import automation_browser_session as sessions
+from . import login_monitor
 from .access_routes import PrivateAccessRoute
 from .ai_model_config import write_header
 from .automation_routes import require_publisher
@@ -39,16 +41,38 @@ class OpenPage(BaseModel):
 @router.get("/sessions")
 def list_sessions(purpose: Literal["listing", "promotion"] | None = None):
     if purpose is None:
-        return sessions.sessions()
+        return login_monitor.remember_all(sessions.sessions())
     platforms = ("xianyu",) if purpose == "listing" else ("douyin", "xiaohongshu", "kuaishou")
-    return sessions.sessions(platforms)
+    return login_monitor.remember_all(sessions.sessions(platforms))
+
+
+@router.get("/monitor")
+def login_status():
+    """The latest known login of each platform, without opening the browser."""
+    return {"items": login_monitor.snapshot(), "interval_seconds": (
+        login_monitor.REMOTE_SECONDS if remote_browser_enabled() else login_monitor.LOCAL_SECONDS)}
 
 
 @router.post("/platforms/{platform}/open", dependencies=[Depends(write_header)])
 def open_platform(platform: Platform, body: OpenPage):
-    return sessions.session(platform, open_page=body.page)
+    result = sessions.session(platform, open_page=body.page)
+    login_monitor.remember(result)
+    return result
 
 
 @router.post("/platforms/{platform}/inspect", dependencies=[Depends(write_header)])
 def inspect_platform(platform: Platform):
-    return sessions.session(platform)
+    result = sessions.session(platform)
+    login_monitor.remember(result)
+    return result
+
+
+@router.post("/platforms/{platform}/clear", dependencies=[Depends(write_header)])
+def clear_platform(platform: Platform):
+    """清除登录缓存: sign this platform out so it can log in again, with any account."""
+    try:
+        result = sessions.clear_login(platform)
+    except adapter.BrowserPublishError as error:
+        raise HTTPException(409, error.message) from None
+    login_monitor.forget(platform)
+    return result

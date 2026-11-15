@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session, object_session
 from agent_core import Identity, install_request_context
 from agent_core.web import install_cors, install_utc_datetime_responses
 
-from . import remote_browser, trial_accounts
+from . import login_monitor, remote_browser, trial_accounts
 from .access_control import can_view_all_tasks, has_permission
 from .access_control import get_content_identity as get_identity
 from .access_routes import router as local_access_router
@@ -691,6 +691,7 @@ def _ensure_library_media_metadata(
 async def lifespan(_: FastAPI):
     init_database()
     recover_automation_runs()
+    login_monitor.start()  # re-checks platform logins in the background
     asset_store = get_asset_store_port()
     # Hold throughout responses and background/FFmpeg work. An offline cache
     # purge may never unlink paths returned to readers in this process.

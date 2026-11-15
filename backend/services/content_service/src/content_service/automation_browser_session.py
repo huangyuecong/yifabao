@@ -371,7 +371,13 @@ def _connected(cdp_url: str):
         browser = runtime.chromium.connect_over_cdp(websocket, timeout=10_000)
         if not browser.contexts:
             raise _error("browser_context_missing", "专用浏览器尚未建立可用会话，请稍后重试。")
-        yield browser.contexts[0]
+        from . import remote_browser
+
+        if remote_browser.enabled():
+            # Online trial: the account's own incognito context in the shared server browser.
+            yield remote_browser.account_context(browser, browser.contexts[0])
+        else:
+            yield browser.contexts[0]
     finally:
         # Disconnect the automation client, retaining the visible browser and login.
         if runtime is not None:
@@ -765,6 +771,10 @@ def session(platform: str, *, open_page: str | None = None) -> dict:
                 identifier, account, recipe = _connection(platform)
                 if account["cdp_url"] != cdp_url:
                     raise _error("browser_config_changed", "浏览器配置已变化，请重新打开登录页面。")
+            from . import remote_browser
+
+            if open_page is None and remote_browser.enabled() and not remote_browser.has_context():
+                return _base(platform)  # this account has no open (incognito) context: nothing to check
             if not _port_open(urlsplit(cdp_url).port):
                 if open_page is None:
                     return _base(platform)
@@ -803,10 +813,12 @@ def sessions(platforms: tuple[str, ...] | None = None) -> dict:
             )
         except adapter.BrowserPublishError as error:
             result[platform] = _base(platform, "unavailable", error.message)
+    from . import remote_browser
+
     for cdp_url, entries in groups.items():
         try:
             profile = _profile(cdp_url)
-            if not _port_open(urlsplit(cdp_url).port):
+            if not _port_open(urlsplit(cdp_url).port) or (remote_browser.enabled() and not remote_browser.has_context()):
                 for platform, *_ in entries:
                     result[platform] = _base(platform)
                 continue
@@ -834,3 +846,59 @@ def sessions(platforms: tuple[str, ...] | None = None) -> dict:
                     platform, "unavailable", "无法连接专用发布浏览器，请重试打开网页登录。"
                 )
     return {"items": [result[platform] for platform in selected]}
+
+
+# Sites whose cookies and storage hold each platform's login.
+LOGIN_SITES = {
+    "xianyu": ("goofish.com", "taobao.com"),
+    "douyin": ("douyin.com",),
+    "xiaohongshu": ("xiaohongshu.com",),
+    "kuaishou": ("kuaishou.com",),
+}
+LOGIN_ORIGINS = {
+    "xianyu": ("https://www.goofish.com", "https://passport.goofish.com", "https://login.taobao.com"),
+    "douyin": ("https://creator.douyin.com", "https://www.douyin.com"),
+    "xiaohongshu": ("https://creator.xiaohongshu.com", "https://www.xiaohongshu.com"),
+    "kuaishou": ("https://cp.kuaishou.com", "https://passport.kuaishou.com", "https://www.kuaishou.com"),
+}
+
+
+def clear_login(platform: str) -> dict:
+    """Sign this platform out of the publishing browser: its cookies, site storage and tabs.
+
+    Also drops the remembered account, so a different platform account may log in next.
+    Other platforms' logins are untouched.
+    """
+    if platform not in PAGES:
+        raise _error("platform_unsupported", "请选择受支持的发布平台。")
+    identifier, account, _recipe = _connection(platform)
+    cdp_url = account["cdp_url"]
+    if identifier:
+        binding = adapter._data_dir() / "private" / "browser-login-bindings" / f"{identifier}-{platform}.json"
+        binding.unlink(missing_ok=True)
+    from . import remote_browser
+
+    open_now = _port_open(urlsplit(cdp_url).port) and (not remote_browser.enabled() or remote_browser.has_context())
+    if open_now:
+        with adapter._browser_lock(cdp_url, wait=adapter.STATUS_LOCK_WAIT_SECONDS, purpose="status"):
+            _verify_dedicated_process(cdp_url, _profile(cdp_url))
+            with _connected(cdp_url) as context:
+                sites = LOGIN_SITES[platform]
+                pattern = re.compile(r"(^|\.)(" + "|".join(re.escape(site) for site in sites) + r")$")
+                context.clear_cookies(domain=pattern)
+                for page in list(context.pages):
+                    host = urlsplit(page.url).hostname or ""
+                    if pattern.search(host):
+                        with suppress(Exception):
+                            page.close()
+                helper = context.new_page()
+                try:
+                    devtools = context.new_cdp_session(helper)
+                    for origin in LOGIN_ORIGINS[platform]:
+                        with suppress(Exception):
+                            devtools.send("Storage.clearDataForOrigin", {"origin": origin, "storageTypes": "all"})
+                finally:
+                    with suppress(Exception):
+                        helper.close()
+    return {**_base(platform, "login_required", "已清除这个平台的登录信息，可以重新登录（也可以换一个账号）。"),
+            "connected": open_now}

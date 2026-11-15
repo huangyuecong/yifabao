@@ -8,6 +8,7 @@ import { catalogApi, catalogMedia, recordStatusLabels } from '@/api/agent/catalo
 import { platformInitial, platformName, recordStatusClass, shortTime, yuan } from './catalogPresentation'
 import ContentBrowserPanel from './ContentBrowserPanel.vue'
 import { friendlyContentError } from './contentWorkflow'
+import { confirmLogins } from './loginCheck'
 import ModuleTabs from './ModuleTabs.vue'
 import WbPagination from './WbPagination.vue'
 
@@ -32,6 +33,7 @@ const chosen = ref<string[]>([])
 const listing = reactive({ condition: '全新', shippingFee: 0, location: '', includeGenerated: false })
 const prices = reactive<Record<string, number | undefined>>({})
 const submitting = ref(false)
+const accountPanel = ref<HTMLElement>()
 const submittedIds = ref<string[]>([])
 const submitted = ref<PublishRecord[]>([])
 
@@ -156,6 +158,10 @@ async function submit() {
   }
   submitting.value = true
   try {
+    // A missing login is a prompt now, not a failed record later.
+    if (!await confirmLogins('listing', ['xianyu'], () => accountPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))) {
+      return
+    }
     try {
       localStorage.setItem(LOCATION_KEY, listing.location.trim())
     }
@@ -414,7 +420,7 @@ onDeactivated(() => clearInterval(timer))
                 </div>
               </div>
             </div>
-            <div>
+            <div ref="accountPanel">
               <h3>闲鱼账号</h3>
               <p class="wb-muted account-hint">提交后按顺序在发布浏览器里执行；没登录时会先等你扫码登录。</p>
               <ContentBrowserPanel :enabled="true" purpose="listing" class="account-panel" />

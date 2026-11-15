@@ -16,7 +16,7 @@ globalThis.window = { addEventListener: (type, callback) => events.set(callback,
 globalThis.__accessTest = { call: (method, ...args) => api[method](...args), confirm: (...args) => confirm(...args) }
 const moduleUrls = {
   'vue': import.meta.resolve('vue'),
-  'element-plus': dataModule('export const ElMessage = { success() {} }; export const ElMessageBox = { confirm: (...args) => globalThis.__accessTest.confirm(...args) };'),
+  'element-plus': dataModule('export const ElMessage = { success() {} }; export const ElNotification = () => {}; export const ElMessageBox = { confirm: (...args) => globalThis.__accessTest.confirm(...args) };'),
   '@/api/agent/access': dataModule('export const contentAccessApi = Object.fromEntries(["me", "users", "update"].map(method => [method, (...args) => globalThis.__accessTest.call(method, ...args)]));'),
 }
 function replaceImports(text) {
