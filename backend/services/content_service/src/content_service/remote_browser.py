@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
 import shutil
@@ -48,6 +49,7 @@ from . import trial_accounts
 
 PORT = 9300
 CDP_URL = f"http://127.0.0.1:{PORT}"
+logger = logging.getLogger(__name__)
 MARKER = "about:blank#yifabao-account="
 IDLE_SECONDS = 45 * 60
 WINDOW = (1280, 860)
@@ -409,27 +411,42 @@ def _ensure_reaper() -> None:
         idle_since = None
         while True:
             time.sleep(60)
-            with suppress(Exception), _lock:
-                now = time.monotonic()
-                contexts = _contexts()
-                for name, context in contexts.items():
-                    if now - _last_used.get(name, 0) > IDLE_SECONDS:
-                        try:
-                            with _account_lock(name, wait=0):
-                                _close_context(name, context)
-                        except adapter.BrowserPublishError:
-                            continue  # publishing right now
-                # Nobody has used the browser for a while: free its memory.
-                if _running() and not _contexts():
-                    idle_since = idle_since or now
-                    if now - idle_since > IDLE_SECONDS:
-                        _stop_browser()
-                        idle_since = None
-                else:
-                    idle_since = None
+            try:
+                with _lock:
+                    idle_since = _reap_once(idle_since)
+            except Exception:
+                logger.exception("remote browser cleanup failed")
 
     _reaper = threading.Thread(target=reap, name="remote-browser-reaper", daemon=True)
     _reaper.start()
+
+
+def start_reaper() -> None:
+    """Run the idle cleanup from service start: the browser may outlive a service restart,
+    and its logins must still be cleared after ``IDLE_SECONDS``."""
+    if enabled():
+        _ensure_reaper()
+
+
+def _reap_once(idle_since: float | None) -> float | None:
+    now = time.monotonic()
+    contexts = _contexts()
+    for name, context in contexts.items():
+        # A context from before a service restart gets a full idle period from now.
+        if now - _last_used.setdefault(name, now) > IDLE_SECONDS:
+            try:
+                with _account_lock(name, wait=0):
+                    _close_context(name, context)
+            except adapter.BrowserPublishError:
+                continue  # publishing right now
+    # Nobody has used the browser for a while: free its memory.
+    if _running() and not _contexts():
+        idle_since = idle_since or now
+        if now - idle_since > IDLE_SECONDS:
+            _stop_browser()
+            return None
+        return idle_since
+    return None
 
 
 # --------------------------------------------------------------------------- screen and input

@@ -8,7 +8,9 @@ import { remoteLoginApi } from '@/api/agent/trial'
 /* Online trial: the platform's login page runs in a browser on the server. This shows that
  * page live; the tester scans its QR code with their phone, and can click on the picture or
  * type (e.g. a verification code) to reach the page. */
-const props = defineProps<{ platform: BrowserPlatformSession['platform'] | '', label: string }>()
+/* `verify`: a publish task is waiting for the platform's own check (e.g. an SMS code) in its tab.
+ * Show that tab as it is: open no login page and do not close when the account is signed in. */
+const props = defineProps<{ platform: BrowserPlatformSession['platform'] | '', label: string, verify?: boolean }>()
 const emit = defineEmits<{ close: [], updated: [session: BrowserPlatformSession] }>()
 
 const image = ref('')
@@ -45,7 +47,7 @@ async function refresh() {
   }
   polls += 1
   // Every few pictures, check whether the scan has signed the account in.
-  if (polls % 4 === 0) {
+  if (!props.verify && polls % 4 === 0) {
     void inspect(true)
   }
   if (alive) {
@@ -59,8 +61,12 @@ async function open() {
   }
   alive = true
   polls = 0
-  starting.value = true
   problem.value = ''
+  if (props.verify) {
+    void refresh()
+    return
+  }
+  starting.value = true
   try {
     const session = await remoteLoginApi.start(props.platform) as BrowserPlatformSession
     if (session?.state === 'unavailable') {
@@ -160,13 +166,16 @@ onBeforeUnmount(stop)
 <template>
   <ElDialog
     :model-value="!!platform"
-    :title="`${label}扫码登录`"
+    :title="verify ? `${label}安全验证` : `${label}扫码登录`"
     width="min(920px, 96vw)"
     append-to-body
     destroy-on-close
     @close="emit('close')"
   >
-    <p class="hint">
+    <p v-if="verify" class="hint">
+      {{ label }}要求验证是本人在发布（服务器是新设备）。在画面里点“获取验证码”，收到短信后先点画面里的输入框，再在下方输入验证码，最后点画面里的“验证”。验证通过后会自动继续发布。
+    </p>
+    <p v-else class="hint">
       下面是服务器上的{{ label }}登录页。用手机{{ label }} App 扫描画面里的二维码；需要切换到“扫码登录”或点按钮时，直接点画面。
       这是只属于你试用账号的无痕窗口：登录信息不写入硬盘，闲置 45 分钟或在“平台账号”里清除后就全部删除。
     </p>
@@ -193,7 +202,14 @@ onBeforeUnmount(stop)
     </div>
     <template #footer>
       <ElButton @click="emit('close')">关闭</ElButton>
-      <ElButton type="primary" :loading="checking" @click="inspect()">我已扫码，检测登录</ElButton>
+      <ElButton
+        v-if="!verify"
+        type="primary"
+        :loading="checking"
+        @click="inspect()"
+      >
+        我已扫码，检测登录
+      </ElButton>
     </template>
   </ElDialog>
 </template>

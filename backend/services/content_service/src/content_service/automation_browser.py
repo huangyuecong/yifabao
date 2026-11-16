@@ -16,6 +16,7 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlsplit
@@ -54,6 +55,17 @@ STEP_ACTIONS = frozenset({"fill", "click", "select", "upload", "wait"})
 TIMEOUT_MS = 30_000
 # Another publish may still be finishing; wait for it instead of failing at once.
 LOCK_WAIT_SECONDS = 180
+
+# A running publish task's progress note (e.g. "the platform wants an SMS code"),
+# shown on its record while it waits. Set by the task runner; empty text clears it.
+publish_hint: ContextVar[Callable[[str], None] | None] = ContextVar("publish_hint", default=None)
+
+
+def report_hint(message: str) -> None:
+    callback = publish_hint.get()
+    if callback is not None:
+        with suppress(Exception):
+            callback(message)
 # Login checks queue behind each other briefly (the page loads all platforms at once).
 STATUS_LOCK_WAIT_SECONDS = 60
 UPLOAD_TIMEOUT_MS = 180_000

@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from sqlalchemy import select, update
 
+from . import automation_browser as browser
 from . import db, remote_browser
 from .automation_platforms import get_platform
 from .catalog_media import absolute, new_work_dir, product_image_path, save_jpeg
@@ -141,12 +142,22 @@ def run_record(record_id: str) -> None:
                 _fenced(session, record_id, token, "running", {"status": "submitting", "lease_expires_at": utcnow() + LEASE})
             submitted = True
 
+        def hint(message: str) -> None:
+            # Shown on the record while the task waits, e.g. for an SMS code on the platform.
+            with db.SessionLocal() as session:
+                session.execute(update(PublishRecord).where(
+                    PublishRecord.id == record_id, PublishRecord.lease_token == token,
+                    PublishRecord.status.in_(("running", "submitting")),
+                ).values(error=message[:500]))
+                session.commit()
+
+        browser.publish_hint.set(hint)
         receipt = execute(platform, "publish", payload, {}, execution_mode="browser", before_submit=before_submit)
         if not submitted or receipt.get("status") != "published":
             raise RuntimeError("平台未返回发布回执")
         with db.SessionLocal() as session:
             _fenced(session, record_id, token, "submitting", {
-                "status": "succeeded", "external_url": str(receipt.get("url") or "")[:1024],
+                "status": "succeeded", "error": "", "external_url": str(receipt.get("url") or "")[:1024],
                 "external_id": str(receipt.get("external_id") or "")[:128],
                 "account_label": str(receipt.get("account_label") or "")[:120],
                 "lease_token": None, "lease_expires_at": None, "finished_at": utcnow(),
@@ -154,7 +165,8 @@ def run_record(record_id: str) -> None:
     except Stopped:
         return
     except Exception as exc:
-        uncertain = submitted or getattr(exc, "status", "") == "unknown"
+        # A platform error can prove nothing was published even after 发布 was clicked.
+        uncertain = (submitted and getattr(exc, "status", "") != "failed") or getattr(exc, "status", "") == "unknown"
         message = str(exc) if isinstance(exc, ValueError) else _safe_error(exc)
         if hasattr(exc, "message"):
             message = str(exc.message)

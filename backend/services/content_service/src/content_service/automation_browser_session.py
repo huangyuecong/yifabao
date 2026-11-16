@@ -552,6 +552,29 @@ def _identity_recipe(recipe: dict) -> dict:
     return recipe
 
 
+FOCUS_CHECK_MS = 2000
+# The account page is heavy: on the 2-core trial server Douyin's creator home took
+# ~19 s to show the account id even when idle, and longer right after an upload.
+# A login prompt also ends the wait, so a signed-out check stays quick.
+ACCOUNT_PAGE_LOAD_MS = 60_000
+ACCOUNT_SIGNAL_MS = 45_000
+
+
+def _focus_state(page) -> dict | None:
+    """Whether a tab is visible/focused, or None when it does not answer in time.
+
+    A plain ``evaluate`` has no timeout: a frozen background tab (a creator home page
+    left open for hours) would hold the publish task, and its account lock, forever.
+    """
+    try:
+        return page.wait_for_function(
+            "() => ({visible: document.visibilityState === 'visible', focused: document.hasFocus()})",
+            timeout=FOCUS_CHECK_MS,
+        ).json_value()
+    except Exception:
+        return None
+
+
 def _inspect_identity(context, page, platform, identifier, account, recipe) -> dict:
     """Load fresh account evidence; an existing tab may retain a signed-out user.
 
@@ -586,9 +609,9 @@ def _inspect_identity(context, page, platform, identifier, account, recipe) -> d
         if urlsplit(candidate.url).scheme not in {'https', 'http'}:
             continue
         try:
-            state = candidate.evaluate(
-                "({visible: document.visibilityState === 'visible', focused: document.hasFocus()})"
-            )
+            state = _focus_state(candidate)
+            if state is None:
+                continue
             if state.get("focused"):
                 restore_page = candidate
                 break
@@ -615,7 +638,7 @@ def _inspect_identity(context, page, platform, identifier, account, recipe) -> d
                         if document.get('result') == 1 and data.get('logined') is True and type(uid) is int and uid > 0:
                             account_identity.append('快手UID：' + str(uid))
             account_page.on('response', observe_account)
-        account_page.goto(target, wait_until="domcontentloaded", timeout=30_000)
+        account_page.goto(target, wait_until="domcontentloaded", timeout=ACCOUNT_PAGE_LOAD_MS)
         if not _official_page(account_page, platform):
             return unknown
         if urlsplit(account_page.url).path not in {"/login", "/passport"}:
@@ -640,7 +663,7 @@ def _inspect_identity(context, page, platform, identifier, account, recipe) -> d
                     signal = signal.or_(
                         account_page.get_by_text(label, exact=True).filter(visible=True)
                     )
-                signal.first.wait_for(state="visible", timeout=15_000)
+                signal.first.wait_for(state="visible", timeout=ACCOUNT_SIGNAL_MS)
         return _observed(platform, account_page, identifier, account, recipe,
                          fresh_identity=account_identity[-1] if account_identity else None)
     except Exception:

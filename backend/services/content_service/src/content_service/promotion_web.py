@@ -23,6 +23,10 @@ UPLOAD_TIMEOUT_SECONDS = 20 * 60
 POLL_SECONDS = 2
 BUSY_TEXT = re.compile(r'^\s*(上传中|正在上传|视频处理中|处理中|转码中)')
 RECEIPT_TIMEOUT_SECONDS = 120
+# Identity checks a platform shows after 发布 on a new device; the owner must answer them.
+VERIFY_TEXT = re.compile(r'(接收短信验证码|短信验证码|安全验证|身份验证|验证身份|请完成验证)')
+VERIFY_WAIT_SECONDS = 10 * 60
+LABELS = {'douyin': '抖音', 'xiaohongshu': '小红书', 'kuaishou': '快手'}
 
 
 def is_recipe(recipe):
@@ -228,16 +232,54 @@ def _listed_after_publish(page, platform, payload):
             and page.get_by_text(payload['title'], exact=False).filter(visible=True).count() > 0)
 
 
-def receipt(page, platform, payload, *, timeout=RECEIPT_TIMEOUT_SECONDS, clock=time.monotonic):
-    """Require explicit success (or Kuaishou's listing of the new work), never infer it."""
+def verification_visible(page):
+    return page.get_by_text(VERIFY_TEXT).filter(visible=True).count() > 0
+
+
+def _verification_hint(platform):
+    from . import remote_browser
+    name = LABELS[platform]
+    minutes = VERIFY_WAIT_SECONDS // 60
+    where = (f'在“发布记录”点“去验证”（或在“平台账号”打开{name}窗口）' if remote_browser.enabled()
+             else f'在专用发布浏览器的{name}页面')
+    return f'{name}要求短信验证本人操作：请{where}获取并输入验证码，{minutes} 分钟内完成后会继续发布。'
+
+
+def receipt(page, platform, payload, *, timeout=RECEIPT_TIMEOUT_SECONDS,
+            verify_timeout=VERIFY_WAIT_SECONDS, clock=time.monotonic):
+    """Require explicit success (or Kuaishou's listing of the new work), never infer it.
+
+    Douyin asks an account it sees on a new device (the trial server) for an SMS code
+    after 发布 is clicked, and publishes only once it is entered (observed 2026-11-16).
+    While that dialog shows, wait for the account owner; the tab must stay open.
+    """
     success = page.get_by_text(re.compile(r'^(发布成功|笔记发布成功|作品发布成功|发布成功，审核中)$')).filter(visible=True)
     deadline = clock() + timeout
+    verifying = False
     while not success.count():
         if _listed_after_publish(page, platform, payload):
             return {'status': 'published', 'url': '', 'external_id': ''}
+        if verification_visible(page):
+            if not verifying:
+                verifying = True
+                deadline = max(deadline, clock() + verify_timeout)
+                browser.report_hint(_verification_hint(platform))
+        elif verifying:
+            # Verified (or the dialog went away): the platform goes on publishing.
+            verifying = False
+            deadline = max(deadline, clock() + timeout)
+            browser.report_hint('')
         if clock() >= deadline:
+            if verifying:
+                # The dialog still blocks the publish, so nothing was published.
+                raise browser.BrowserPublishError(
+                    'verification_required',
+                    f'{LABELS[platform]}要求短信验证，{verify_timeout // 60} 分钟内未完成验证，作品没有发布；完成验证后可重试。',
+                    status='failed')
             raise TimeoutError('no publish receipt')
         page.wait_for_timeout(1000)
+    if verifying:
+        browser.report_hint('')
     patterns = {
         'douyin': r'https://www\.douyin\.com/video/([0-9]+)',
         'xiaohongshu': r'https://www\.xiaohongshu\.com/(?:explore|discovery/item)/([a-zA-Z0-9]+)',
@@ -285,6 +327,8 @@ def publish(platform, payload, identifier, account, recipe, before_submit):
                     target.click(timeout=15_000)
                 return {**receipt(page, platform, prepared), 'account_label': account['label']}
             except Exception as error:
+                if submitted and isinstance(error, browser.BrowserPublishError) and error.status == 'failed':
+                    raise  # known not published (e.g. verification never completed)
                 if submitted:
                     raise browser.BrowserPublishError('publication_unknown', '已尝试提交，尚未取得完整作品回执；请在平台核查，本次不会自动重复发布。', status='unknown') from None
                 if isinstance(error, browser.BrowserPublishError):

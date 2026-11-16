@@ -219,3 +219,38 @@ def test_xiaohongshu_upload_longer_than_the_old_five_second_check(chromium, payl
     assert publish_with(context, monkeypatch, 'xiaohongshu', payload, marks)['status'] == 'published'
     assert marks == [True] and attempts == [1] and context.pages == []
     context.close()
+
+
+SMS_HTML = '''<!doctype html><meta charset="utf-8"><div id="dialog"><h3>接收短信验证码</h3>
+<p>为确保是本人操作抖音账号，请输入当前手机号收到的短信验证码</p></div>
+<script>setTimeout(() => {{ document.querySelector('#dialog').remove(); {after} }}, {delay});</script>'''
+
+
+def test_douyin_waits_while_the_owner_enters_the_sms_code(chromium, payload):
+    """Observed on the trial server: 抖音 asks for an SMS code after 发布 and publishes once it is entered."""
+    context = chromium.new_context()
+    page = context.new_page()
+    page.set_content(SMS_HTML.format(delay=2500, after="document.body.insertAdjacentHTML('beforeend', '<div>发布成功</div>')"))
+    hints = []
+    token = browser.publish_hint.set(hints.append)
+    try:
+        # The plain receipt wait (1 s) would give up; the dialog extends it for the owner.
+        result = web.receipt(page, 'douyin', web.validate_payload('douyin', payload), timeout=1, verify_timeout=30)
+    finally:
+        browser.publish_hint.reset(token)
+        context.close()
+    assert result['status'] == 'published'
+    assert '抖音要求短信验证' in hints[0] and hints[-1] == ''
+
+
+def test_an_unanswered_sms_check_is_a_known_failure_not_unknown(chromium, payload):
+    context = chromium.new_context()
+    page = context.new_page()
+    page.set_content(SMS_HTML.format(delay=600_000, after=''))
+    try:
+        with pytest.raises(browser.BrowserPublishError) as error:
+            web.receipt(page, 'douyin', web.validate_payload('douyin', payload), timeout=1, verify_timeout=2)
+    finally:
+        context.close()
+    # The dialog still blocked 发布, so nothing was published and a retry is safe.
+    assert error.value.code == 'verification_required' and error.value.status == 'failed'

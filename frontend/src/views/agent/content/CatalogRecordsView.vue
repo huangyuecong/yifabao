@@ -4,14 +4,23 @@ import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onActivated, onDeactivated, ref } from 'vue'
 import { catalogApi, platformLabels, recordStatusLabels } from '@/api/agent/catalog'
+import { trialMe } from '@/api/agent/trial'
 import { platformInitial, platformName, recordStatusClass, shortTime, yuan } from './catalogPresentation'
 import { friendlyContentError } from './contentWorkflow'
 import ModuleTabs from './ModuleTabs.vue'
+import RemoteLoginDialog from './RemoteLoginDialog.vue'
 import WbPagination from './WbPagination.vue'
 
 defineOptions({ name: 'CatalogRecordsView' })
 /* With `fixed` set this is the 上架记录 / 发布历史 tab of one module; without it, every record. */
 const props = defineProps<{ fixed?: Workflow }>()
+
+/* Online trial: a running publish that waits for the platform's SMS check shows a hint on its
+ * record; "去验证" shows that task's tab on the server so the tester can enter the code. */
+const verifyFor = ref<PublishPlatform | ''>('')
+function waitsForVerification(row: PublishRecord) {
+  return !!trialMe.value.remote_browser && ['running', 'submitting'].includes(row.status) && row.error.includes('验证')
+}
 
 const workflow = ref<Workflow | ''>(props.fixed ?? '')
 const status = ref<RecordStatus | 'active' | ''>('')
@@ -277,7 +286,7 @@ onDeactivated(() => clearInterval(timer))
               rel="noopener"
               class="result-link wb-ellipsis"
             >{{ row.external_url }}</a>
-            <span v-else-if="row.error" class="error-text" :title="row.error">{{ row.error }}</span>
+            <span v-else-if="row.error" :class="['running', 'submitting'].includes(row.status) ? 'hint-text' : 'error-text'" :title="row.error">{{ row.error }}</span>
             <span v-else class="wb-muted">—</span>
           </template>
         </ElTableColumn>
@@ -293,6 +302,14 @@ onDeactivated(() => clearInterval(timer))
         </ElTableColumn>
         <ElTableColumn width="120" align="right">
           <template #default="{ row }">
+            <ElButton
+              v-if="waitsForVerification(row)"
+              link
+              type="warning"
+              @click="verifyFor = row.platform"
+            >
+              去验证
+            </ElButton>
             <ElButton
               v-if="row.status === 'failed'"
               link
@@ -329,6 +346,13 @@ onDeactivated(() => clearInterval(timer))
         @change="load()"
       />
     </section>
+
+    <RemoteLoginDialog
+      :platform="verifyFor"
+      :label="verifyFor ? platformLabels[verifyFor] : ''"
+      verify
+      @close="verifyFor = ''"
+    />
 
     <ElDialog
       :model-value="!!resolving"
@@ -368,6 +392,10 @@ onDeactivated(() => clearInterval(timer))
   display: block;
   color: var(--xi-semantic-color-link-default);
   font-size: 13px;
+}
+.hint-text {
+  color: var(--el-color-warning-dark-2);
+  font-size: 12px;
 }
 .error-text {
   display: -webkit-box;

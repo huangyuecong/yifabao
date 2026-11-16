@@ -692,6 +692,7 @@ async def lifespan(_: FastAPI):
     init_database()
     recover_automation_runs()
     login_monitor.start()  # re-checks platform logins in the background
+    remote_browser.start_reaper()  # trial server: clear idle accounts' logins
     asset_store = get_asset_store_port()
     # Hold throughout responses and background/FFmpeg work. An offline cache
     # purge may never unlink paths returned to readers in this process.

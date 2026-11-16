@@ -18,7 +18,8 @@ ADDRESS = '.ant-form-item:has(label[title="宝贝所在地"]) [class^="address--
 UNSUPPORTED = "网页版暂不支持发布此分类"
 # Xianyu rebuilds the category list as it recognises the photos; until then it only
 # offers guesses from the text, which may not include 其他闲置.
-CATEGORY_WAIT_SECONDS = 45
+# On the trial server photo recognition can take well over 45 s.
+CATEGORY_WAIT_SECONDS = 90
 # Xianyu suggests categories from the photos (e.g. 国产白酒), many of which the
 # web form refuses. 其他闲置 is always offered and accepted, so every listing uses it.
 CATEGORY = "其他闲置"

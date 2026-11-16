@@ -355,3 +355,59 @@ def test_clear_login_signs_one_platform_out(remote, monkeypatch, tmp_path):
     assert closed == ["https://creator.douyin.com/home", "about:blank"]  # the platform tab, then its own helper tab
     assert "https://creator.douyin.com" in storage
     assert sorted(path.name for path in bindings.iterdir()) == ["trial-alice-kuaishou.json"]
+
+
+def test_idle_logins_are_cleared_even_when_the_browser_outlived_a_restart(remote, monkeypatch):
+    clock = [10_000.0]
+    monkeypatch.setattr(remote_browser.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(remote_browser, "_stop_browser", lambda: None)
+    alice = remote_browser.context_for("alice", create=True)
+    remote_browser._last_used.clear()  # a service restart forgets when it was last used
+    assert remote_browser._reap_once(None) is None
+    assert remote.disposed == []  # a full idle period starts now, not at once
+    clock[0] += remote_browser.IDLE_SECONDS + 1
+    remote_browser._reap_once(None)
+    assert remote.disposed == [alice] and remote_browser.running_owners() == []
+
+
+def test_idle_cleanup_skips_an_account_that_is_publishing(remote, monkeypatch):
+    clock = [10_000.0]
+    monkeypatch.setattr(remote_browser.time, "monotonic", lambda: clock[0])
+    remote_browser.context_for("alice", create=True)
+    clock[0] += remote_browser.IDLE_SECONDS + 1
+    with remote_browser._account_lock("alice", wait=0):
+        remote_browser._reap_once(None)
+    assert remote.disposed == []
+
+
+def test_the_cleanup_starts_with_the_service(remote, monkeypatch):
+    started = []
+    monkeypatch.setattr(remote_browser, "_ensure_reaper", lambda: started.append(True))
+    remote_browser.start_reaper()
+    monkeypatch.setenv("CONTENT_REMOTE_BROWSER", "false")
+    remote_browser.start_reaper()
+    assert started == [True]
+
+
+def test_a_frozen_tab_does_not_stall_the_account_check():
+    class Frozen:
+        url = "https://creator.douyin.com/creator-micro/home"
+
+        def wait_for_function(self, expression, timeout):
+            assert timeout == sessions.FOCUS_CHECK_MS
+            raise TimeoutError("page does not answer")
+
+        def evaluate(self, *args, **kwargs):
+            raise AssertionError("an unbounded evaluate would hang here")
+
+    class Answers:
+        url = "https://creator.douyin.com/creator-micro/content/upload"
+
+        def wait_for_function(self, expression, timeout):
+            class Handle:
+                def json_value(self):
+                    return {"visible": True, "focused": True}
+            return Handle()
+
+    assert sessions._focus_state(Frozen()) is None
+    assert sessions._focus_state(Answers()) == {"visible": True, "focused": True}

@@ -63,6 +63,14 @@ class Page:
     def evaluate(self, _expression):
         return {"visible": self.visible, "focused": self.focused}
 
+    def wait_for_function(self, _expression, timeout):
+        state = {"visible": self.visible, "focused": self.focused}
+
+        class Handle:
+            def json_value(self):
+                return state
+        return Handle()
+
     def get_by_text(self, text, **_kwargs):
         return Locator(text, text == self.login, int(text == self.login))
 
@@ -419,7 +427,7 @@ def test_async_account_render_is_awaited_before_identity_read(browser, monkeypat
     monkeypatch.setattr(browser, "new_page", new_page)
     result = service.session("douyin")
     assert result["state"] == "logged_in" and result["publish_ready"]
-    assert waits == [{"state": "visible", "timeout": 15000}]
+    assert waits == [{"state": "visible", "timeout": service.ACCOUNT_SIGNAL_MS}]
     assert fresh.closed and browser.pages == [old]
 
 
