@@ -254,3 +254,17 @@ def test_an_unanswered_sms_check_is_a_known_failure_not_unknown(chromium, payloa
         context.close()
     # The dialog still blocked 发布, so nothing was published and a retry is safe.
     assert error.value.code == 'verification_required' and error.value.status == 'failed'
+
+
+def test_an_account_barred_from_posting_is_a_known_failure(chromium, payload):
+    """Observed on 小红书 2026-11-17: after 发布 a toast says the account may not post notes."""
+    context = chromium.new_context()
+    page = context.new_page()
+    page.set_content('<!doctype html><meta charset="utf-8"><div class="toast">因违反社区规范禁止发笔记</div>')
+    try:
+        with pytest.raises(browser.BrowserPublishError) as error:
+            web.receipt(page, 'xiaohongshu', web.validate_payload('xiaohongshu', payload), timeout=30)
+    finally:
+        context.close()
+    assert error.value.code == 'platform_refused' and error.value.status == 'failed'
+    assert '因违反社区规范禁止发笔记' in error.value.message

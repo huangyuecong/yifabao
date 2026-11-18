@@ -1,5 +1,6 @@
 """Xianyu's observed web form. Every listing uses 其他闲置; never guess an address."""
 
+import logging
 import re
 import time
 from contextlib import suppress
@@ -9,6 +10,8 @@ from pathlib import Path
 from PIL import Image
 
 from . import automation_browser as browser
+
+logger = logging.getLogger(__name__)
 
 ADAPTER = "xianyu-web-v1"
 PUBLISH_URL = "https://www.goofish.com/publish"
@@ -20,6 +23,7 @@ UNSUPPORTED = "网页版暂不支持发布此分类"
 # offers guesses from the text, which may not include 其他闲置.
 # On the trial server photo recognition can take well over 45 s.
 CATEGORY_WAIT_SECONDS = 90
+CATEGORY_CLICK_MS = 5000
 # Xianyu suggests categories from the photos (e.g. 国产白酒), many of which the
 # web form refuses. 其他闲置 is always offered and accepted, so every listing uses it.
 CATEGORY = "其他闲置"
@@ -141,15 +145,21 @@ def _select_category(page, category):
         while True:
             option = _category_option(page, field, category)
             if option.count() == 1:
-                break
-            # Not offered yet: close the list and look again once Xianyu has
-            # finished recognising the photos.
+                try:
+                    # Xianyu may rebuild the list while it is open (photo recognition
+                    # still running): the row moves, then is detached. Observed
+                    # 2026-11-17 as a 30 s click timeout; reopen and click again.
+                    option.click(timeout=CATEGORY_CLICK_MS)
+                    break
+                except Exception:
+                    pass
+            # Not offered yet, or the list changed under the click: close it and
+            # look again once Xianyu has finished recognising the photos.
             with suppress(Exception):
                 page.keyboard.press('Escape')
             if time.monotonic() >= deadline:
                 _block("category_unavailable", f"闲鱼当前可选分类中没有“{category}”，未提交商品。")
             page.wait_for_timeout(2000)
-        option.click()
     try:
         # The page only shows the new category after its h5api request answers.
         expect(selected).to_have_text(category, timeout=15_000)
@@ -324,6 +334,11 @@ def check_form(page, payload):
 def prepare_page(page, payload):
     """Upload and populate a fresh editor; this function never submits."""
     guard(page, category=False)
+    # The login check may have brought another tab to the front. A background tab gets no
+    # animation frames, so the category list never settles and its options cannot be
+    # clicked (observed 2026-11-17); fill the form in the front tab like the other publishers.
+    with suppress(Exception):
+        page.bring_to_front()
     page.locator(EDITOR).wait_for(timeout=20_000)
     if page.locator(EDITOR).inner_text().strip() or page.locator(IMAGES).count():
         _block('editor_not_empty', '发布页已有内容，为避免覆盖，请使用新的商品发布页。')
@@ -389,6 +404,7 @@ def publish(payload, identifier, account, recipe, before_submit):
                     raise browser.BrowserPublishError('publication_unknown', '已尝试发布，结果尚未确认；请在闲鱼核查，禁止自动重复提交。', status='unknown') from None
                 if isinstance(error, browser.BrowserPublishError):
                     raise
+                logger.warning("xianyu publish failed before submitting", exc_info=True)  # the tester only sees the generic message
                 raise browser.BrowserPublishError('preparation_failed', '商品图片或表单尚未准备完成，未点击发布，请重试。') from None
             finally:
                 # Close only the tab this task opened, whatever the outcome; the

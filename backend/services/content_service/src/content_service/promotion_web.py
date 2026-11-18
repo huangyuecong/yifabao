@@ -1,5 +1,6 @@
 """Creator web video forms observed on 2026-10-25; no private publishing API."""
 
+import logging
 import re
 import time
 from contextlib import suppress
@@ -7,6 +8,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import automation_browser as browser
+
+logger = logging.getLogger(__name__)
 from .automation_platforms import get_platform
 
 ADAPTER = 'promotion-web-v1'
@@ -26,6 +29,9 @@ RECEIPT_TIMEOUT_SECONDS = 120
 # Identity checks a platform shows after 发布 on a new device; the owner must answer them.
 VERIFY_TEXT = re.compile(r'(接收短信验证码|短信验证码|安全验证|身份验证|验证身份|请完成验证)')
 VERIFY_WAIT_SECONDS = 10 * 60
+# A platform refusing the account outright, e.g. 小红书's toast "因违反社区规范禁止发笔记"
+# (observed 2026-11-17): nothing is published, so it is a known failure, not 待核查.
+REFUSED_TEXT = re.compile(r'(禁止发笔记|禁止发布|账号已被封禁|账号异常.{0,6}无法发布|违反社区规范)')
 LABELS = {'douyin': '抖音', 'xiaohongshu': '小红书', 'kuaishou': '快手'}
 
 
@@ -259,6 +265,11 @@ def receipt(page, platform, payload, *, timeout=RECEIPT_TIMEOUT_SECONDS,
     while not success.count():
         if _listed_after_publish(page, platform, payload):
             return {'status': 'published', 'url': '', 'external_id': ''}
+        refused = page.get_by_text(REFUSED_TEXT).filter(visible=True)
+        if refused.count():
+            reason = refused.first.inner_text().strip()[:60]
+            raise browser.BrowserPublishError(
+                'platform_refused', f'{LABELS[platform]}拒绝发布：{reason}（账号受限），作品没有发布。', status='failed')
         if verification_visible(page):
             if not verifying:
                 verifying = True
@@ -333,6 +344,7 @@ def publish(platform, payload, identifier, account, recipe, before_submit):
                     raise browser.BrowserPublishError('publication_unknown', '已尝试提交，尚未取得完整作品回执；请在平台核查，本次不会自动重复发布。', status='unknown') from None
                 if isinstance(error, browser.BrowserPublishError):
                     raise
+                logger.warning("promotion publish failed before submitting", exc_info=True)  # the tester only sees the generic message
                 raise browser.BrowserPublishError('preparation_failed', '视频上传或表单校验尚未完成，未点击发布，请重试。') from None
             finally:
                 # Close only the tab this task opened, whatever the outcome.
