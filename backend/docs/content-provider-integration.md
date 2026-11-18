@@ -57,7 +57,7 @@ HTTPS_PROXY=http://your-proxy-host:port
 ```powershell
 $env:CONTENT_KNOWLEDGE_PROVIDER = "jsonl"
 $env:CONTENT_KNOWLEDGE_DIR = (Resolve-Path `
-  "tests\fixtures\content_knowledge\yifabao_official").Path
+  "tests\fixtures\content_knowledge\sample_brand").Path
 $env:CONTENT_KNOWLEDGE_TOP_K = "4"
 ```
 

@@ -1758,7 +1758,7 @@ def test_official_jsonl_import_job_populates_unified_chunks_and_search(
         content_main.Path(__file__).resolve().parent
         / "fixtures"
         / "content_knowledge"
-        / "yifabao_official"
+        / "sample_brand"
     )
     monkeypatch.setattr(
         content_main,

@@ -1,0 +1,17 @@
+{
+  "kb_id": "sample-brand-public-v1",
+  "name": "虚构品牌“雅酿酒业”公开资料示例知识库",
+  "version": 1,
+  "usage_scope": "test_only",
+  "data_level": "public",
+  "isolation": {
+    "production_import": false,
+    "network_refresh_during_tests": false,
+    "description": "虚构的示例品牌资料，仅供离线测试检索和导入流程，内容不对应任何真实企业。"
+  },
+  "categories": [
+    {"id": "enterprise", "name": "企业资料", "file": "enterprise.jsonl"},
+    {"id": "culture", "name": "品牌文化", "file": "culture.jsonl"},
+    {"id": "product", "name": "产品资料", "file": "products.jsonl"}
+  ]
+}

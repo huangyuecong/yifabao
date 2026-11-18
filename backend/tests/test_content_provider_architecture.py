@@ -191,11 +191,11 @@ def test_settings_require_explicit_external_model_and_knowledge_configuration(
 
 
 def test_jsonl_knowledge_provider_uses_only_explicit_directory():
-    directory = ROOT / "tests" / "fixtures" / "content_knowledge" / "yifabao_official"
+    directory = ROOT / "tests" / "fixtures" / "content_knowledge" / "sample_brand"
     provider = JsonlKnowledgeProvider(directory, "test-content")
     chunks = provider.search(
         KnowledgeQuery(
-            text="臻品文化 仁者五德 恭宽信敏惠",
+            text="雅集文化 核心价值观 诚匠和雅",
             requester_id="user-a",
             task_id="task-a",
             categories=("culture",),
@@ -206,7 +206,7 @@ def test_jsonl_knowledge_provider_uses_only_explicit_directory():
     assert chunks
     assert chunks[0].category == "culture"
     assert all(chunk.data_level == "public" for chunk in chunks)
-    assert any("恭、宽、信、敏、惠" in chunk.text for chunk in chunks)
+    assert any("诚、匠、和、雅" in chunk.text for chunk in chunks)
 
 
 def test_jsonl_knowledge_provider_rejects_manifest_path_escape(tmp_path):

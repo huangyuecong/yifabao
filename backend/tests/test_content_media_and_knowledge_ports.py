@@ -857,7 +857,7 @@ def test_document_and_official_jsonl_ingestion_preserve_source_metadata(tmp_path
     assert "产品资料正文" in extract_document_text(docx_path)
     assert "产品 卖点" in extract_document_text(docx_path)
 
-    fixture = ROOT / "tests" / "fixtures" / "content_knowledge" / "yifabao_official"
+    fixture = ROOT / "tests" / "fixtures" / "content_knowledge" / "sample_brand"
     imported = load_official_jsonl_bundle(fixture)
     categories = discover_official_jsonl_categories(fixture)
     assert imported
